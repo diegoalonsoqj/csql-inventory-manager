@@ -1,0 +1,350 @@
+================================================================================
+ CloudSQL Inventory Manager (CSQL-IM) — Despliegue en Ubuntu Server con PM2
+================================================================================
+
+ Objetivo: la app corriendo con Node.js + PM2 en un Ubuntu Server, arrancando
+ sola tras un reinicio del sistema.
+
+ Modelo de despliegue: UN SOLO proceso Node. Express sirve la API (/api/*) y
+ el SPA ya compilado (server/public) en el MISMO origen. No hay servidor web
+ separado para el frontend ni CORS entre dominios.
+
+ Convenciones de esta guía:
+   - Ruta de instalación:  /opt/csql-inventory
+   - Usuario que ejecuta:  csqlim   (cámbialo por el tuyo si usas otro)
+   - Puerto de la app:     3001
+
+================================================================================
+ 0. POR QUÉ FALLÓ "npm run start:prod"  (léelo antes de continuar)
+================================================================================
+
+ `start:prod` es un atajo de DESARROLLO: hace "npm run build && npm start",
+ o sea recompila el frontend cada vez que arranca. En producción NO se usa:
+ se compila UNA vez y PM2 arranca directamente `node src/app.js`.
+
+ Causas típicas del fallo, de más a menos frecuente:
+
+ (a) Lo ejecutaste en la RAÍZ del proyecto.
+     El package.json de la raíz sólo tiene: dev, build, start.
+     `start:prod` sólo existe en server/package.json.
+     Error: npm error Missing script: "start:prod"
+     -> Se ejecuta desde /opt/csql-inventory/server
+
+ (b) No instalaste las dependencias del cliente.
+     start:prod llama a "cd ../client && npm run build", y vite es una
+     devDependency del cliente.
+     Error: sh: 1: vite: not found
+     -> cd client && npm ci   (npm ci a secas, NO --omit=dev: vite es devDep)
+
+ (c) Copiaste node_modules desde Windows.
+     Los binarios nativos son por plataforma (esbuild, @rollup/rollup-*).
+     Error: Cannot find module @rollup/rollup-linux-x64-gnu
+            o "You installed esbuild for another platform"
+     -> Borra los node_modules copiados y reinstala en el servidor (paso 4).
+
+ (d) Node demasiado antiguo. El arranque usa --env-file, que necesita Node
+     >= 20.6 (aquí instalamos 24 LTS). El `nodejs` de los repos de Ubuntu
+     suele ser 18.x.
+     Error: bad option: --env-file=../.env
+     -> Instala Node 24 desde NodeSource (paso 2).
+
+ (e) Falta el .env o le faltan variables.
+     Error: Missing required env var: DATABASE_URL   (o JWT_SECRET /
+            APP_ENCRYPTION_KEY)
+     -> El .env va en la RAÍZ del proyecto, no dentro de server/ (paso 5).
+
+ (f) La base de datos no es alcanzable desde el servidor. La app hace un
+     SELECT 1 antes de escuchar y aborta si falla.
+     Error: [SERVER] Failed to start: connect ETIMEDOUT <IP_PRIVADA_CLOUD_SQL>:5432
+     -> Verifica red/firewall:  nc -vz <IP_PRIVADA_CLOUD_SQL> 5432
+
+ Si el error que viste no encaja con ninguno, copia el texto exacto: los
+ mensajes de esta app son explícitos y apuntan directo a la causa.
+
+================================================================================
+ 1. SUBIR EL CÓDIGO AL SERVIDOR   (desde Windows, PowerShell)
+================================================================================
+
+ Se empaqueta SIN node_modules y SIN server/public (ambos se regeneran en el
+ servidor). Windows 10 ya trae tar.exe.
+
+   cd d:\DEVS
+   tar -czf csqlim.tar.gz `
+     --exclude="*node_modules*" `
+     --exclude="CloudSQL_Inventory_Manager/server/public" `
+     --exclude="CloudSQL_Inventory_Manager/base" `
+     CloudSQL_Inventory_Manager
+
+   scp csqlim.tar.gz csqlim@IP_DEL_SERVIDOR:/tmp/
+
+ OJO: el paquete incluye .env, que lleva JWT_SECRET y APP_ENCRYPTION_KEY.
+ No lo dejes tirado en /tmp ni lo subas a un repo. En el paso 5 se le ponen
+ permisos 600.
+
+ Alternativa sin línea de comandos: WinSCP / FileZilla (SFTP), arrastrando la
+ carpeta pero excluyendo a mano node_modules y server/public.
+
+ Ya en el servidor:
+
+   sudo mkdir -p /opt/csql-inventory
+   sudo tar -xzf /tmp/csqlim.tar.gz -C /opt --strip-components=0
+   sudo mv /opt/CloudSQL_Inventory_Manager/* /opt/CloudSQL_Inventory_Manager/.env /opt/csql-inventory/
+   sudo rmdir /opt/CloudSQL_Inventory_Manager
+   sudo chown -R csqlim:csqlim /opt/csql-inventory
+   rm /tmp/csqlim.tar.gz
+
+ (Si prefieres, extrae directo con:
+    sudo tar -xzf /tmp/csqlim.tar.gz -C /opt && sudo mv /opt/CloudSQL_Inventory_Manager /opt/csql-inventory)
+
+================================================================================
+ 2. INSTALAR NODE 24 LTS Y PM2   (en el servidor, una sola vez)
+================================================================================
+
+   sudo apt-get update
+   sudo apt-get install -y curl ca-certificates
+   curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
+   sudo apt-get install -y nodejs
+
+   node -v      # debe decir v24.x
+   npm -v
+
+   sudo npm install -g pm2
+   pm2 -v
+
+ Si el servidor NO tiene salida a internet (ni proxy hacia registry.npmjs.org),
+ este paso y el 4 no funcionan: avísame y cambiamos a un paquete offline con
+ los node_modules de Linux precompilados.
+
+================================================================================
+ 3. USUARIO DEDICADO   (opcional pero recomendado; omítelo si usas root)
+================================================================================
+
+   sudo adduser --system --group --home /opt/csql-inventory --shell /bin/bash csqlim
+   sudo chown -R csqlim:csqlim /opt/csql-inventory
+
+ Todos los comandos siguientes se ejecutan COMO ese usuario:
+   sudo -iu csqlim
+
+================================================================================
+ 4. INSTALAR DEPENDENCIAS Y COMPILAR EL FRONTEND
+================================================================================
+
+ IMPORTANTE antes de compilar: la variable VITE_API_URL NO debe estar
+ exportada en el shell. Vite hornea cualquier variable VITE_* del entorno
+ dentro del bundle; si queda "http://localhost:3001/api", el navegador de los
+ usuarios llamará a SU propio localhost y la app no cargará datos. Sin esa
+ variable el cliente usa "/api" relativo, que es lo correcto aquí.
+
+   unset VITE_API_URL
+
+   # Frontend: npm ci COMPLETO (vite es devDependency). Emite a ../server/public
+   cd /opt/csql-inventory/client
+   npm ci
+   npm run build
+
+   # Backend: sólo dependencias de producción (omite better-sqlite3 y eslint)
+   cd /opt/csql-inventory/server
+   npm ci --omit=dev
+
+   # Comprobación: debe existir el SPA compilado
+   ls /opt/csql-inventory/server/public/index.html
+
+ Opcional, para liberar ~200 MB una vez compilado:
+   rm -rf /opt/csql-inventory/client/node_modules
+
+================================================================================
+ 5. CONFIGURAR EL .env   (en la RAÍZ: /opt/csql-inventory/.env)
+================================================================================
+
+   nano /opt/csql-inventory/.env
+
+ Revisa:
+
+   NODE_ENV=production          # obligatorio: sin esto Express NO sirve el SPA
+   PORT=3001
+   DATABASE_URL=postgresql://csqlim:...@<IP_PRIVADA_CLOUD_SQL>:5432/csql_inventory
+   TRUST_PROXY=                 # déjalo vacío si expones 3001 directo;
+                                # ponlo en 1 SOLO si metes Nginx delante (paso 10)
+   COOKIE_SECURE=false          # ponlo en true únicamente cuando sirvas por HTTPS
+
+   # VITE_API_URL=...           # COMÉNTALA O BÓRRALA (ver aviso del paso 4)
+
+ APP_ENCRYPTION_KEY: si el servidor apunta a la MISMA base de datos que ya
+ usabas, esta clave debe ser IDÉNTICA a la actual. Si la cambias, los secretos
+ cifrados en BD (la cuenta de servicio de GCP) dejan de poder descifrarse y hay
+ que volver a cargarlos desde Configuración.
+
+ Permisos (el fichero tiene secretos):
+   chmod 600 /opt/csql-inventory/.env
+
+ Verifica que la BD responde desde este servidor:
+   nc -vz <IP_PRIVADA_CLOUD_SQL> 5432
+
+================================================================================
+ 6. MIGRACIONES Y USUARIO ADMIN   (sólo si la BD es nueva)
+================================================================================
+
+ Si apuntas a la BD que ya estabas usando, SÁLTATE este paso: el runner
+ detecta el esquema existente y no lo recrea, pero no hace falta tocar nada.
+
+   cd /opt/csql-inventory/server
+   npm run migrate
+   npm run create-admin
+
+ Nota: el rol `csqlim` puede no tener permisos de CREATE. Si `npm run migrate`
+ falla con "permission denied for schema public", pide al DBA el GRANT
+ correspondiente (o ejecuta las migraciones con un rol administrador) y repite.
+
+================================================================================
+ 7. PRUEBA MANUAL ANTES DE PM2
+================================================================================
+
+ Arranca en primer plano para ver los errores tal cual:
+
+   cd /opt/csql-inventory/server
+   node --env-file=../.env src/app.js
+
+ Debe imprimir:
+   [DB] Connection OK
+   [SERVER] Running on http://0.0.0.0:3001 (production)
+
+ En otra terminal:
+   curl -s http://localhost:3001/health
+   curl -sI http://localhost:3001/ | head -1     # debe dar 200 (el SPA)
+
+ Corta con Ctrl+C. Si esto no funciona, PM2 tampoco lo hará: resuelve el error
+ aquí primero (mira la sección 0).
+
+================================================================================
+ 8. ARRANCAR CON PM2
+================================================================================
+
+ El repo ya trae ecosystem.config.cjs (app "csql-inventory", modo fork, 1
+ instancia, autorestart, --env-file apuntando al .env de la raíz). No necesita
+ cambios para Linux; las rutas se resuelven con __dirname.
+
+   cd /opt/csql-inventory
+   pm2 start ecosystem.config.cjs
+   pm2 status
+   pm2 logs csql-inventory --lines 50
+
+ Comandos útiles:
+   pm2 restart csql-inventory
+   pm2 stop csql-inventory
+   pm2 reload csql-inventory        # recarga sin downtime
+   pm2 describe csql-inventory
+
+ Rotación de logs (recomendado, evita que /home crezca sin control):
+   pm2 install pm2-logrotate
+   pm2 set pm2-logrotate:max_size 10M
+   pm2 set pm2-logrotate:retain 7
+
+ Ajuste opcional en ecosystem.config.cjs: max_memory_restart está en '256M'.
+ Si haces exports grandes a Excel, súbelo a '512M' para evitar reinicios en
+ mitad de una descarga.
+
+================================================================================
+ 9. ARRANQUE AUTOMÁTICO AL ENCENDER EL SERVIDOR
+================================================================================
+
+ Dos comandos, en este orden:
+
+   # 1) Genera e instala el servicio systemd para el usuario actual.
+   #    Este comando IMPRIME una línea "sudo env PATH=... pm2 startup ..." :
+   #    cópiala y ejecútala tal cual.
+   pm2 startup systemd -u csqlim --hp /opt/csql-inventory
+
+   # 2) Congela la lista de procesos actual para que se restaure al arrancar.
+   #    Ejecútalo SIEMPRE después de cambiar qué apps corren en PM2.
+   pm2 save
+
+ Verificación:
+   sudo systemctl status pm2-csqlim      # debe estar enabled + active
+   sudo systemctl is-enabled pm2-csqlim  # -> enabled
+
+ Prueba real (la única que vale):
+   sudo reboot
+   # al volver:
+   pm2 status
+   curl -s http://localhost:3001/health
+
+ Si tras el reinicio `pm2 status` sale vacío, casi siempre es que faltó el
+ `pm2 save` después del `pm2 start`.
+
+================================================================================
+ 10. ACCESO DESDE LA RED
+================================================================================
+
+ Opción A — puerto 3001 directo (lo más simple):
+
+   sudo ufw status                      # si está inactivo, no hay que hacer nada
+   sudo ufw allow 3001/tcp
+   # Acceso:  http://IP_DEL_SERVIDOR:3001
+
+ Opción B — Nginx en el puerto 80 delante de la app:
+
+   sudo apt-get install -y nginx
+   sudo tee /etc/nginx/sites-available/csql-inventory >/dev/null <<'EOF'
+   server {
+       listen 80;
+       server_name _;
+       client_max_body_size 10m;
+
+       location / {
+           proxy_pass http://127.0.0.1:3001;
+           proxy_http_version 1.1;
+           proxy_set_header Host              $host;
+           proxy_set_header X-Real-IP         $remote_addr;
+           proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+           proxy_set_header X-Forwarded-Proto $scheme;
+           proxy_read_timeout 300s;   # el sync con GCP puede tardar
+       }
+   }
+   EOF
+   sudo ln -sf /etc/nginx/sites-available/csql-inventory /etc/nginx/sites-enabled/
+   sudo rm -f /etc/nginx/sites-enabled/default
+   sudo nginx -t && sudo systemctl reload nginx
+   sudo ufw allow 'Nginx HTTP'
+
+ Con Nginx delante, edita el .env y pon TRUST_PROXY=1 (para que el
+ rate-limiting vea la IP real del cliente y no la del proxy), luego:
+   pm2 restart csql-inventory
+
+ Si además pones HTTPS (certificado + listen 443), cambia también
+ COOKIE_SECURE=true en el .env y reinicia.
+
+================================================================================
+ 11. ACTUALIZAR LA APP MÁS ADELANTE
+================================================================================
+
+ Desde Windows, empaqueta y sube igual que en el paso 1 (a /tmp), y luego:
+
+   sudo -iu csqlim
+   cd /opt/csql-inventory
+   tar -xzf /tmp/csqlim.tar.gz -C /tmp && \
+     rsync -a --delete \
+       --exclude='node_modules' --exclude='server/node_modules' \
+       --exclude='client/node_modules' --exclude='server/public' --exclude='.env' \
+       /tmp/CloudSQL_Inventory_Manager/ /opt/csql-inventory/
+
+   unset VITE_API_URL
+   cd client && npm ci && npm run build
+   cd ../server && npm ci --omit=dev
+   npm run migrate            # sólo si hay migraciones nuevas
+   pm2 reload csql-inventory
+   pm2 logs csql-inventory --lines 30
+
+ El .env se excluye a propósito para no pisar la configuración del servidor.
+
+================================================================================
+ 12. CHECKLIST FINAL
+================================================================================
+
+   [ ] node -v muestra v24.x
+   [ ] /opt/csql-inventory/server/public/index.html existe
+   [ ] .env con NODE_ENV=production, sin VITE_API_URL, chmod 600
+   [ ] node --env-file=../.env src/app.js arranca a mano ([DB] Connection OK)
+   [ ] pm2 status -> csql-inventory online
+   [ ] pm2 save ejecutado DESPUÉS del pm2 start
+   [ ] systemctl is-enabled pm2-csqlim -> enabled
+   [ ] tras `sudo reboot`, la app responde en /health sin tocar nada

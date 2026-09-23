@@ -1,0 +1,318 @@
+==============================================================================
+ CloudSQL Inventory Manager (CSQL-IM) — Despliegue en Google Cloud Run
+ Guía paso a paso
+==============================================================================
+
+Arquitectura del despliegue
+---------------------------
+- UN SOLO servicio de Cloud Run: Express sirve la API (/api/*) Y el frontend
+  compilado (server/public) en el mismo origen. No hace falta hostear el
+  frontend aparte ni lidiar con CORS entre dominios.
+- Base de datos: PostgreSQL en Cloud SQL (la instancia que ya usas para
+  'csql_inventory').
+- Secretos (contraseña de BD, JWT, clave de cifrado) en Secret Manager.
+- Sesiones con cookie httpOnly + CSRF -> en producción DEBE ir por HTTPS
+  (Cloud Run ya es HTTPS) con COOKIE_SECURE=true y TRUST_PROXY=1.
+
+NOTA IMPORTANTE sobre la BD:
+  Si Cloud Run usará la MISMA base de datos 'csql_inventory' que ya migraste
+  desde tu máquina, el esquema (migraciones 001-004) y el usuario admin YA
+  EXISTEN. En ese caso puedes saltarte el "Paso 8 (migraciones)" salvo para
+  futuras migraciones nuevas.
+
+
+------------------------------------------------------------------------------
+ PLACEHOLDERS a reemplazar en TODOS los comandos
+------------------------------------------------------------------------------
+  <PROJECT_ID>              Proyecto GCP donde desplegar Cloud Run (ej. mi-empresa-tools)
+  <REGION>                  Región (ej. us-central1  o  southamerica-west1)
+  <SERVICE>                 Nombre del servicio (ej. csql-inventory)
+  <INSTANCE_CONNECTION>     Nombre de conexión de la instancia Cloud SQL,
+                            formato PROYECTO:REGION:INSTANCIA
+                            (verlo con:  gcloud sql instances describe NOMBRE
+                             --format='value(connectionName)')
+  <DB_USER>                 Usuario de BD (ej. csqlim)
+  <DB_PASSWORD>             Contraseña de ese usuario
+  <DB_NAME>                 Nombre de la BD (ej. csql_inventory)
+  <RUNTIME_SA>             Email de la service account de runtime del servicio
+                            (ej. csql-inventory-run@<PROJECT_ID>.iam.gserviceaccount.com)
+
+
+------------------------------------------------------------------------------
+ PASO 1 — Prerrequisitos (una sola vez)
+------------------------------------------------------------------------------
+1.1 Instalar Google Cloud CLI y autenticarte:
+      gcloud auth login
+      gcloud config set project <PROJECT_ID>
+
+1.2 Habilitar las APIs necesarias:
+      gcloud services enable \
+        run.googleapis.com \
+        cloudbuild.googleapis.com \
+        artifactregistry.googleapis.com \
+        secretmanager.googleapis.com \
+        sqladmin.googleapis.com \
+        iam.googleapis.com
+
+
+------------------------------------------------------------------------------
+ PASO 2 — Crear el Dockerfile (en la raíz del repo)
+------------------------------------------------------------------------------
+Crea un archivo llamado exactamente  Dockerfile  con este contenido:
+
+------------------------------ Dockerfile -----------------------------------
+# ---- Build stage: compila el frontend e instala deps de producción ----
+FROM node:24-slim AS build
+WORKDIR /app
+
+# Dependencias del cliente y build del SPA (Vite lo emite a ../server/public)
+COPY client/package*.json ./client/
+RUN cd client && npm ci
+COPY client/ ./client/
+COPY server/ ./server/
+RUN cd client && npm run build
+
+# Dependencias de producción del servidor (omite devDeps como better-sqlite3)
+RUN cd server && npm ci --omit=dev
+
+# ---- Runtime stage: imagen mínima que corre el servidor ----
+FROM node:24-slim
+WORKDIR /app/server
+ENV NODE_ENV=production
+COPY --from=build /app/server ./
+# Cloud Run inyecta la variable PORT (8080). La app la lee automáticamente.
+EXPOSE 8080
+CMD ["node", "src/app.js"]
+-----------------------------------------------------------------------------
+
+IMPORTANTE: el contenedor arranca con "node src/app.js" (SIN --env-file).
+Las variables de entorno vienen de Cloud Run, no de un archivo .env.
+
+
+------------------------------------------------------------------------------
+ PASO 3 — Crear el .dockerignore (en la raíz del repo)
+------------------------------------------------------------------------------
+Crea un archivo llamado  .dockerignore  con este contenido (evita meter
+secretos y basura en la imagen):
+
+----------------------------- .dockerignore ---------------------------------
+.git
+.gitignore
+.env
+.env.*
+**/node_modules
+server/public
+*.log
+credentials
+scratchpad
+-----------------------------------------------------------------------------
+
+(server/public se ignora a propósito: se regenera dentro del build de Docker.)
+
+
+------------------------------------------------------------------------------
+ PASO 4 — Guardar los secretos en Secret Manager
+------------------------------------------------------------------------------
+Reutiliza EXACTAMENTE los mismos valores del .env actual (sobre todo
+APP_ENCRYPTION_KEY: si cambia, no se podrá descifrar la cuenta de servicio
+que se haya guardado en Settings).
+
+4.1 JWT_SECRET:
+      printf '%s' 'PEGA_AQUI_EL_JWT_SECRET' | \
+        gcloud secrets create JWT_SECRET --data-file=-
+
+4.2 APP_ENCRYPTION_KEY:
+      printf '%s' 'PEGA_AQUI_LA_APP_ENCRYPTION_KEY' | \
+        gcloud secrets create APP_ENCRYPTION_KEY --data-file=-
+
+4.3 DATABASE_URL (conexión por socket de Cloud SQL — ver Paso 6, Opción A):
+      printf '%s' 'postgresql://<DB_USER>:<DB_PASSWORD>@/<DB_NAME>?host=/cloudsql/<INSTANCE_CONNECTION>' | \
+        gcloud secrets create DATABASE_URL --data-file=-
+
+  (Si más adelante necesitas actualizar un secreto, usa:
+     printf '%s' 'NUEVO_VALOR' | gcloud secrets versions add NOMBRE --data-file=- )
+
+
+------------------------------------------------------------------------------
+ PASO 5 — Service Account de runtime y permisos
+------------------------------------------------------------------------------
+5.1 Crear la SA que ejecutará el servicio:
+      gcloud iam service-accounts create csql-inventory-run \
+        --display-name="CSQL Inventory Cloud Run"
+
+    (Su email será: csql-inventory-run@<PROJECT_ID>.iam.gserviceaccount.com
+     = <RUNTIME_SA> en los comandos siguientes)
+
+5.2 Permitir que lea los secretos:
+      for S in JWT_SECRET APP_ENCRYPTION_KEY DATABASE_URL; do
+        gcloud secrets add-iam-policy-binding $S \
+          --member="serviceAccount:<RUNTIME_SA>" \
+          --role="roles/secretmanager.secretAccessor"
+      done
+
+5.3 Permitir conectarse a Cloud SQL:
+      gcloud projects add-iam-policy-binding <PROJECT_ID> \
+        --member="serviceAccount:<RUNTIME_SA>" \
+        --role="roles/cloudsql.client"
+
+5.4 (Para que el SYNC de inventario funcione) Acceso de lectura a Cloud SQL
+    Admin en los proyectos a inventariar. Tienes DOS caminos:
+
+    Camino A (recomendado): subir una cuenta de servicio dedicada desde la
+      pantalla Settings de la app (ya soporta esto, cifrada en BD). Esa SA
+      debe tener 'roles/cloudsql.viewer' en cada proyecto a inventariar
+      (o a nivel de carpeta/organización). Así el runtime NO necesita permisos
+      cruzados.
+
+    Camino B (usar ADC del runtime): darle a <RUNTIME_SA> el rol
+      'roles/cloudsql.viewer' en CADA proyecto que se inventaría. Ejemplo por
+      proyecto:
+        gcloud projects add-iam-policy-binding PROYECTO_A_INVENTARIAR \
+          --member="serviceAccount:<RUNTIME_SA>" \
+          --role="roles/cloudsql.viewer"
+      (o una sola vez a nivel de organización/carpeta si tienes permisos).
+
+
+------------------------------------------------------------------------------
+ PASO 6 — Conexión a Cloud SQL (elige UNA opción)
+------------------------------------------------------------------------------
+OPCION A (recomendada) — Conector nativo de Cloud Run por socket Unix:
+  - No requiere VPC. Se adjunta la instancia en el deploy con
+    --add-cloudsql-instances (ver Paso 7) y la DATABASE_URL usa el socket
+    /cloudsql/<INSTANCE_CONNECTION> (ya definida en el Paso 4.3).
+
+OPCION B — IP privada vía Serverless VPC Access (si tu instancia SOLO tiene
+  IP privada, como 10.43.x, y prefieres conectarte por IP):
+    gcloud compute networks vpc-access connectors create csql-conn \
+      --region=<REGION> --network=<TU_VPC> --range=10.8.0.0/28
+  Y en el Paso 7 agrega:
+      --vpc-connector=csql-conn --vpc-egress=private-ranges-only
+  Y usa una DATABASE_URL con la IP privada:
+      postgresql://<DB_USER>:<DB_PASSWORD>@<IP_PRIVADA_CLOUD_SQL>:5432/<DB_NAME>
+  (guárdala como secreto DATABASE_URL en vez de la del socket).
+
+
+------------------------------------------------------------------------------
+ PASO 7 — Build + Deploy a Cloud Run
+------------------------------------------------------------------------------
+Desde la RAIZ del repo (donde está el Dockerfile). Cloud Build compila la
+imagen automáticamente con --source .
+
+  gcloud run deploy <SERVICE> \
+    --source . \
+    --region=<REGION> \
+    --service-account=<RUNTIME_SA> \
+    --add-cloudsql-instances=<INSTANCE_CONNECTION> \
+    --set-secrets=DATABASE_URL=DATABASE_URL:latest,JWT_SECRET=JWT_SECRET:latest,APP_ENCRYPTION_KEY=APP_ENCRYPTION_KEY:latest \
+    --set-env-vars=NODE_ENV=production,COOKIE_SECURE=true,TRUST_PROXY=1 \
+    --cpu=1 --memory=512Mi \
+    --min-instances=0 --max-instances=4 \
+    --concurrency=80 \
+    --allow-unauthenticated
+
+Notas:
+  - NO se setea PORT: Cloud Run lo inyecta (8080) y la app lo lee solo.
+  - COOKIE_SECURE=true  -> cookies solo por HTTPS (Cloud Run es HTTPS).
+  - TRUST_PROXY=1       -> rate-limiting usa la IP real del cliente.
+  - Si usaste la OPCION B (VPC), quita --add-cloudsql-instances y agrega
+    --vpc-connector / --vpc-egress como en el Paso 6.
+  - --allow-unauthenticated deja el login de la app como control de acceso.
+    Para restringir a la red interna, ver Paso 10.
+
+Al terminar, gcloud imprime la URL del servicio, por ejemplo:
+    https://<SERVICE>-xxxxxxxxxx-uc.a.run.app
+
+
+------------------------------------------------------------------------------
+ PASO 7.1 — (Opcional) Fijar FRONTEND_ORIGIN
+------------------------------------------------------------------------------
+Como API y SPA van en el MISMO servicio (mismo origen), no es imprescindible.
+Si quieres fijarlo explícitamente para CORS en producción, vuelve a desplegar
+agregando la URL del servicio:
+
+  gcloud run services update <SERVICE> --region=<REGION> \
+    --update-env-vars=FRONTEND_ORIGIN=https://<SERVICE>-xxxxxxxxxx-uc.a.run.app
+
+
+------------------------------------------------------------------------------
+ PASO 8 — Migraciones y usuario admin
+------------------------------------------------------------------------------
+Si Cloud Run usa la MISMA BD que ya migraste desde tu máquina -> ya está
+hecho (esquema 001-004 + admin). Continúa al Paso 9.
+
+Si es una BD NUEVA/limpia, corre migraciones y crea el admin conectándote por
+el Cloud SQL Auth Proxy desde tu máquina:
+
+  8.1 Descarga el proxy: https://cloud.google.com/sql/docs/postgres/sql-proxy
+  8.2 En una terminal:
+        cloud-sql-proxy <INSTANCE_CONNECTION> --port 5432
+  8.3 En otra terminal, dentro de server/, con DATABASE_URL apuntando al proxy:
+        # PowerShell:
+        $env:DATABASE_URL="postgresql://<DB_USER>:<DB_PASSWORD>@localhost:5432/<DB_NAME>"
+        node migrate.js
+        node create-admin.js
+      (recuerda que el usuario de BD necesita permiso CREATE en el schema
+       public para crear tablas; si no, pide a un admin de la BD:
+         GRANT CREATE ON SCHEMA public TO <DB_USER>;  )
+
+  Alternativa: crear un Cloud Run Job con la misma imagen y secretos que
+  ejecute "node migrate.js" (--command node --args migrate.js).
+
+
+------------------------------------------------------------------------------
+ PASO 9 — Verificación post-despliegue
+------------------------------------------------------------------------------
+9.1 Salud del servicio:
+      curl -s https://<URL_DEL_SERVICIO>/health
+      -> debe responder {"status":"ok",...}
+
+9.2 Abre la URL en el navegador -> debe aparecer la pantalla de login.
+9.3 Inicia sesión con tu admin. Verifica dashboard, y que las cookies de
+    sesión aparezcan como Secure + HttpOnly (DevTools > Application > Cookies).
+9.4 Ve a Settings y sube la cuenta de servicio real de GCP (o confía en el
+    ADC del runtime si usaste el Camino B del Paso 5.4). Pulsa
+    "Probar credencial" -> debe confirmar acceso a la API.
+9.5 Dispara un Sync y confirma que el inventario se actualiza.
+
+Ver logs si algo falla:
+      gcloud run services logs read <SERVICE> --region=<REGION> --limit=100
+
+
+------------------------------------------------------------------------------
+ PASO 10 — (Opcional) Restringir acceso a la red interna
+------------------------------------------------------------------------------
+La app ya tiene su propio login. Si además quieres limitar el acceso a la red
+corporativa/VPN:
+  - Opción simple: --ingress=internal-and-cloud-load-balancing + un Load
+    Balancer interno.
+  - Opción robusta: poner Identity-Aware Proxy (IAP) delante del servicio.
+Ambas se configuran a nivel de infraestructura, sin cambios en el código.
+
+
+------------------------------------------------------------------------------
+ PASO 11 — Actualizaciones futuras (redeploy)
+------------------------------------------------------------------------------
+Cada vez que cambies el código:
+  1. (si hay migraciones nuevas) aplícalas como en el Paso 8.
+  2. Redeploy:
+       gcloud run deploy <SERVICE> --source . --region=<REGION>
+     (mantiene la config de SA, secretos y env vars ya establecidos.)
+
+
+------------------------------------------------------------------------------
+ CHECKLIST DE SEGURIDAD EN PRODUCCION
+------------------------------------------------------------------------------
+[ ] COOKIE_SECURE=true             (cookies solo por HTTPS)
+[ ] TRUST_PROXY=1                  (rate-limit por IP real, detrás del proxy de Cloud Run)
+[ ] JWT_SECRET, APP_ENCRYPTION_KEY y DATABASE_URL en Secret Manager (NO en el código)
+[ ] .env y node_modules ignorados por Docker y por git (.dockerignore / .gitignore)
+[ ] APP_ENCRYPTION_KEY es la MISMA que se usó al guardar la cuenta de servicio
+    (si cambia, hay que re-subir la SA en Settings)
+[ ] Usuarios de prueba (admin@local.com, operator@local.com, viewer@local.com)
+    eliminados/desactivados; admins reales creados
+[ ] Runtime SA con permisos mínimos (cloudsql.client + secretAccessor;
+    cloudsql.viewer solo si usas el ADC para el sync)
+
+==============================================================================
+ Fin de la guía.
+==============================================================================

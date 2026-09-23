@@ -1,0 +1,243 @@
+================================================================================
+ CloudSQL Inventory Manager (CSQL-IM) — Permisos GCP requeridos
+================================================================================
+
+ Objetivo: dejar la credencial de GCP con el acceso minimo necesario para que
+ el inventario liste TODAS las instancias Cloud SQL y sus bases de datos en
+ todos los proyectos de la organizacion.
+
+ Contexto: la app NO descubre proyectos por su cuenta. Lee la lista desde la
+ tabla `gcp_projects` (solo los que tienen is_active = true) y consulta la
+ Cloud SQL Admin API proyecto por proyecto.
+
+
+================================================================================
+ 1. QUE LLAMA LA APP (y nada mas)
+================================================================================
+
+ Todo el acceso a GCP vive en server/src/services/gcp-sync.service.js.
+ Son exactamente dos endpoints REST contra sqladmin.googleapis.com:
+
+   GET /v1/projects/{proyecto}/instances
+       -> permiso: cloudsql.instances.list
+
+   GET /v1/projects/{proyecto}/instances/{instancia}/databases
+       -> permiso: cloudsql.databases.list
+
+ No se usa ningun otro servicio de GCP.
+
+ NOTA: la base de datos propia de la app se conecta por DATABASE_URL con el
+ driver `pg` directo (server/src/config/db.js). No usa Cloud SQL Auth Proxy ni
+ autenticacion IAM, asi que NO requiere ningun permiso GCP adicional.
+
+
+================================================================================
+ 2. ROL RECOMENDADO
+================================================================================
+
+   roles/cloudsql.viewer
+
+ Es de solo lectura y cubre los dos permisos anteriores. Se otorga a nivel de
+ ORGANIZACION (o de carpeta) para que se herede a todos los proyectos:
+
+   gcloud organizations list
+
+   gcloud organizations add-iam-policy-binding ORG_ID \
+     --member="serviceAccount:csql-inventory@PROYECTO.iam.gserviceaccount.com" \
+     --role="roles/cloudsql.viewer"
+
+ Si el binding se hace proyecto por proyecto, hay que repetirlo para CADA
+ proyecto de gcp_projects; cualquiera que falte devolvera 403.
+
+
+ --- Alternativa de minimo privilegio -----------------------------------------
+
+ roles/cloudsql.viewer incluye de mas: backupRuns.list, sslCerts.get, etc.
+ Nada peligroso, pero si seguridad exige el minimo estricto:
+
+   gcloud iam roles create csqlInventoryReader --organization=ORG_ID \
+     --title="CSQL Inventory Reader" \
+     --permissions=cloudsql.instances.list,cloudsql.databases.list
+
+   gcloud organizations add-iam-policy-binding ORG_ID \
+     --member="serviceAccount:csql-inventory@PROYECTO.iam.gserviceaccount.com" \
+     --role="organizations/ORG_ID/roles/csqlInventoryReader"
+
+
+ --- Si en el futuro se quiere descubrimiento automatico de proyectos ---------
+
+ Hoy NO hace falta. Si se implementa, se sumaria:
+
+   resourcemanager.projects.list     (rol: roles/browser o roles/viewer)
+
+
+================================================================================
+ 3. LOS DOS REQUISITOS QUE SE OLVIDAN
+================================================================================
+
+ --- (a) SCOPES DE LA VM ------------------------------------------------------
+
+ Si la credencial es una service account ADJUNTA a una VM de Compute Engine,
+ el IAM correcto NO basta: los access scopes de la instancia recortan el token
+ POR ENCIMA del IAM. Los scopes por defecto de una VM no incluyen el necesario.
+
+ La app siempre pide (gcp-sync.service.js, const SCOPES):
+
+   https://www.googleapis.com/auth/cloud-platform
+
+ La VM tiene que tener ese mismo scope. Cambiarlo requiere detener la VM:
+
+   gcloud compute instances stop NOMBRE_VM --zone=ZONA
+   gcloud compute instances set-service-account NOMBRE_VM --zone=ZONA \
+     --service-account=csql-inventory@PROYECTO.iam.gserviceaccount.com \
+     --scopes=https://www.googleapis.com/auth/cloud-platform
+   gcloud compute instances start NOMBRE_VM --zone=ZONA
+
+ Esta es la causa n.1 de "le di el rol y sigue dando 403".
+
+ Verificar que identidad y que scopes tiene la VM realmente:
+
+   curl -H "Metadata-Flavor: Google" \
+     "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/email"
+   curl -H "Metadata-Flavor: Google" \
+     "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/scopes"
+
+
+ --- (b) API HABILITADA POR PROYECTO ------------------------------------------
+
+ sqladmin.googleapis.com debe estar ACTIVA en cada proyecto que se escanea.
+
+   gcloud services enable sqladmin.googleapis.com --project=PROYECTO
+
+ Auditar todos los proyectos activos de la tabla de una vez:
+
+   for p in $(psql "$DATABASE_URL" -tAc "SELECT project_id FROM gcp_projects WHERE is_active"); do
+     echo -n "$p: "
+     gcloud services list --enabled --project="$p" \
+       --filter="config.name:sqladmin" --format="value(config.name)" 2>/dev/null \
+       || echo "SIN ACCESO"
+   done
+
+
+================================================================================
+ 4. COMO OBTIENE LA APP LA CREDENCIAL (orden de prioridad)
+================================================================================
+
+ En gcp-sync.service.js, funcion getAuth():
+
+   1) Service account cargada desde la UI (Settings -> Cuenta de servicio).
+      El JSON se guarda CIFRADO (AES-256-GCM) en la tabla app_settings,
+      key = 'gcp_service_account'. Tiene prioridad sobre todo lo demas.
+
+   2) Si no hay ninguna -> ADC (Application Default Credentials) del entorno:
+        a. variable GOOGLE_APPLICATION_CREDENTIALS
+        b. ~/.config/gcloud/application_default_credentials.json
+           (OJO: del HOME del proceso Node, no del usuario que hace SSH)
+        c. metadata server de la VM -> service account de Compute Engine
+
+ Comprobar cual de las dos rutas esta activa:
+
+   SELECT key, (value_enc IS NOT NULL) AS tiene_sa, updated_at
+   FROM app_settings WHERE key = 'gcp_service_account';
+
+ tiene_sa = false  ->  esta cayendo a ADC (ruta 2).
+
+
+ --- Recomendacion para produccion --------------------------------------------
+
+ Preferir la SA ADJUNTA A LA VM (ruta 2c) sobre subir el JSON en Settings:
+   - no hay material de clave almacenado en la base de datos
+   - no depende de APP_ENCRYPTION_KEY (si esa clave cambia, el JSON cifrado
+     deja de poder descifrarse y el sync se cae en silencio)
+   - las credenciales rotan solas
+
+ NO usar ADC de usuario (gcloud auth application-default login) en produccion:
+ se rompe cuando a esa persona le cambian la contrasena, le caduca la sesion
+ o deja la empresa.
+
+ Aclaracion importante: `gcloud config set account` y `gcloud auth login` NO
+ afectan a la app. Solo cambian la cuenta del CLI de gcloud. La app resuelve
+ ADC por su cuenta e ignora por completo esa configuracion.
+
+
+================================================================================
+ 5. VERIFICACION
+================================================================================
+
+ --- Que roles tiene la SA ----------------------------------------------------
+
+   gcloud organizations get-iam-policy ORG_ID \
+     --flatten="bindings[].members" \
+     --filter="bindings.members:serviceAccount:csql-inventory@PROYECTO.iam.gserviceaccount.com" \
+     --format="table(bindings.role)"
+
+
+ --- Prueba desde la UI -------------------------------------------------------
+
+ Settings -> Probar conexion  (testGcpConnection()).
+
+ CUIDADO: solo prueba el PRIMER proyecto activo. Pasa en verde aunque los
+ otros 40 esten devolviendo 403. No sirve como validacion completa.
+
+
+ --- Prueba real: lanzar un sync y revisar los fallos silenciosos -------------
+
+ Los proyectos que fallan se descartan con Promise.allSettled y el sync queda
+ igualmente marcado como 'success'. El unico rastro esta en el log:
+
+   pm2 logs --lines 3000 --nostream | grep "SYNC.*failed"
+
+ Salida vacia = todos los proyectos respondieron OK.
+
+
+ --- Contraste de cifras ------------------------------------------------------
+
+   SELECT count(*) FILTER (WHERE is_active) AS activos, count(*) AS total
+   FROM gcp_projects;
+
+   SELECT state, count(*) FROM csql_instances GROUP BY state;
+
+   SELECT id, started_at, projects_count, instances_count, databases_count, status
+   FROM sync_log ORDER BY started_at DESC LIMIT 20;
+
+ Si instances_count cae mientras projects_count se mantiene, es problema de
+ PERMISOS, no de la lista de proyectos.
+
+
+================================================================================
+ 6. SINTOMA CONOCIDO: FALTAN REGISTROS EN EL INVENTARIO
+================================================================================
+
+ Cuando la credencial pierde acceso a algunos proyectos, el efecto NO es un
+ error visible, son menos filas. Tres comportamientos del codigo se combinan:
+
+  (a) Un proyecto con 403 se descarta en silencio (Promise.allSettled) y el
+      sync_log igual queda en status = 'success'.
+
+  (b) El marcado de instancias borradas es GLOBAL, no por proyecto:
+
+        UPDATE csql_instances SET state = 'DELETED'
+        WHERE id NOT IN (vistas en este sync) AND state != 'DELETED'
+
+      Las instancias de un proyecto que fallo por permisos quedan marcadas
+      DELETED aunque existan perfectamente en GCP.
+
+  (c) gcpGet() no maneja nextPageToken: si un proyecto supera el tamano de
+      pagina por defecto de instances.list, solo se trae la primera tanda.
+
+ RECUPERACION: corregida la credencial, basta con lanzar un sync. El UPSERT
+ vuelve a ver las instancias y state = EXCLUDED.state las restaura. No se
+ pierde informacion historica.
+
+
+================================================================================
+ 7. RESUMEN EJECUTIVO (para pedirle el acceso al equipo de GCP)
+================================================================================
+
+ Cuenta de servicio:  csql-inventory@PROYECTO.iam.gserviceaccount.com
+ Rol:                 roles/cloudsql.viewer
+ Alcance del binding: nivel ORGANIZACION (o carpeta que agrupe los proyectos)
+ Permisos efectivos:  cloudsql.instances.list, cloudsql.databases.list
+ Tipo de acceso:      SOLO LECTURA (no crea, modifica ni borra nada)
+ API requerida:       sqladmin.googleapis.com habilitada en cada proyecto
+ Scope de la VM:      https://www.googleapis.com/auth/cloud-platform

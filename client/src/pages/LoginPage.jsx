@@ -1,0 +1,93 @@
+import { useState } from 'react';
+import { Database, Loader2, Lock, Mail } from 'lucide-react';
+import { useAuth } from '../context/AuthContext.jsx';
+
+export function LoginPage() {
+  const { login } = useAuth();
+  const [form, setForm] = useState({ email: '', password: '' });
+  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSubmitting(true);
+    try {
+      await login(form.email.trim(), form.password);
+      // El cambio de estado en AuthContext hace que App renderice la app.
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-surface font-sans px-4">
+      <div className="w-full max-w-sm">
+        {/* Logo */}
+        <div className="flex flex-col items-center mb-8">
+          <div className="w-12 h-12 rounded-xl bg-accent-muted flex items-center justify-center mb-3">
+            <Database size={24} className="text-accent" />
+          </div>
+          <h1 className="text-lg font-semibold text-white">CSQL Inventory</h1>
+          <p className="text-sm text-white/40">Google Cloud SQL</p>
+        </div>
+
+        <div className="bg-surface-card border border-surface-border rounded-xl shadow-2xl px-6 py-7">
+          <h2 className="text-base font-semibold text-white mb-1">Iniciar sesión</h2>
+          <p className="text-xs text-white/40 mb-5">Ingresa tus credenciales para continuar</p>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-xs font-medium text-white/60 mb-1.5">Correo</label>
+              <div className="relative">
+                <Mail size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/25" />
+                <input
+                  type="email"
+                  autoComplete="username"
+                  placeholder="usuario@example.com"
+                  value={form.email}
+                  onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                  className="w-full bg-surface border border-surface-border text-sm text-white/80 rounded-lg pl-9 pr-3 py-2.5 focus:outline-none focus:border-accent/50 placeholder:text-white/20"
+                  required
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-white/60 mb-1.5">Contraseña</label>
+              <div className="relative">
+                <Lock size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/25" />
+                <input
+                  type="password"
+                  autoComplete="current-password"
+                  placeholder="••••••••"
+                  value={form.password}
+                  onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
+                  className="w-full bg-surface border border-surface-border text-sm text-white/80 rounded-lg pl-9 pr-3 py-2.5 focus:outline-none focus:border-accent/50 placeholder:text-white/20"
+                  required
+                />
+              </div>
+            </div>
+
+            {error && (
+              <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2.5">
+                <p className="text-xs text-red-400">{error}</p>
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={submitting}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-accent text-surface text-sm font-medium rounded-lg hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {submitting && <Loader2 size={15} className="animate-spin" />}
+              Ingresar
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}

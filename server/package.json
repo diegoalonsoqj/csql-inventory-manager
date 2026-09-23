@@ -1,0 +1,38 @@
+{
+  "name": "csql-inventory-server",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "CloudSQL Inventory Manager - Backend API",
+  "main": "src/app.js",
+  "scripts": {
+    "dev": "node --watch --env-file=../.env src/app.js",
+    "start": "node --env-file=../.env src/app.js",
+    "build": "cd ../client && npm run build",
+    "start:prod": "npm run build && npm start",
+    "migrate": "node --env-file=../.env migrate.js",
+    "create-admin": "node --env-file=../.env create-admin.js",
+    "lint": "eslint src/"
+  },
+  "dependencies": {
+    "@googleapis/sqladmin": "^35.2.0",
+    "bcryptjs": "^3.0.3",
+    "compression": "^1.7.4",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "exceljs": "^4.4.0",
+    "express": "^5.0.1",
+    "express-rate-limit": "^7.4.1",
+    "google-auth-library": "^9.14.2",
+    "helmet": "^8.0.0",
+    "jsonwebtoken": "^9.0.3",
+    "pg": "^8.13.1",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "better-sqlite3": "^12.10.0",
+    "eslint": "^9.15.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

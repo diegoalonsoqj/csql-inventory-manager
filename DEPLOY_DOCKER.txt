@@ -1,0 +1,380 @@
+==============================================================================
+ CloudSQL Inventory Manager (CSQL-IM) — Despliegue con Docker
+ Guía paso a paso
+==============================================================================
+
+Qué se despliega
+----------------
+UN SOLO contenedor: Express sirve la API (/api/*) y el frontend ya compilado
+(server/public) en el MISMO origen. No hay contenedor aparte para el frontend
+ni nginx obligatorio, y por tanto no hay CORS entre dominios.
+
+Esto es un requisito, no una comodidad: la sesión usa cookie httpOnly +
+protección CSRF, y el cliente hace fetch con credentials:'same-origin'. Si
+sirvieras el frontend en otro dominio que la API, el login dejaría de
+funcionar.
+
+La base de datos NO va en la imagen. Elige en el Paso 3 entre usar la BD que ya
+tienes (Cloud SQL <IP_PRIVADA_CLOUD_SQL>) o levantar un PostgreSQL en un contenedor.
+
+  Navegador --> :8080 (host) --> :3001 (contenedor Express) --> PostgreSQL
+                                        |
+                                        +--> sqladmin.googleapis.com (sync)
+
+
+------------------------------------------------------------------------------
+ ARCHIVOS NECESARIOS Y SU UBICACION
+------------------------------------------------------------------------------
+Todos van en la RAIZ del repo (D:\DEVS\CloudSQL_Inventory_Manager\).
+Los cuatro primeros ya están creados; el quinto lo creas tú en el Paso 2.
+
+  ARCHIVO                     UBICACION EXACTA                        ESTADO
+  --------------------------  --------------------------------------  --------
+  Dockerfile                  <raiz>/Dockerfile                       creado
+  .dockerignore               <raiz>/.dockerignore                    creado
+  docker-compose.prod.yml     <raiz>/docker-compose.prod.yml          creado
+  .env.docker.example         <raiz>/.env.docker.example              creado
+  .env.docker                 <raiz>/.env.docker                      LO CREAS TU
+
+Para qué sirve cada uno:
+
+  Dockerfile
+      Build en 2 etapas. Etapa 1: instala deps del cliente, instala deps de
+      producción del servidor (npm ci --omit=dev, así queda fuera
+      better-sqlite3 que es nativo) y compila el SPA con Vite. Etapa 2: imagen
+      final con solo el servidor, sus node_modules de prod y public/ ya
+      compilado. Corre como usuario 'node' (no root) y trae HEALTHCHECK.
+
+  .dockerignore
+      Evita que .env, credentials/, node_modules/ y server/public/ entren al
+      contexto de build. server/public se ignora A PROPOSITO: se regenera
+      dentro del build, así nunca se cuela un frontend viejo.
+
+  docker-compose.prod.yml
+      Servicio 'app' + servicio 'postgres' OPCIONAL (perfil with-db).
+      Publica 8080 en el host. Separado del docker-compose.yml de desarrollo,
+      que sigue sirviendo para el PG local de dev.
+
+  .env.docker
+      Las variables de entorno reales (secretos incluidos). Va en .gitignore.
+
+Ya existentes que el Dockerfile usa (no los toques): client/, server/,
+sus package-lock.json, y server/src/db/migrations/001..004.
+
+
+------------------------------------------------------------------------------
+ PASO 1 — Prerrequisitos
+------------------------------------------------------------------------------
+1.1 Docker NO está instalado en esta máquina (verificado: 'docker' no existe en
+    el PATH y no hay C:\Program Files\Docker). Instala Docker Desktop para
+    Windows:  https://www.docker.com/products/docker-desktop/
+    Requiere WSL2 activado. Tras instalar, abre Docker Desktop y espera a que
+    diga "Engine running".
+
+1.2 Comprueba que responde:
+      docker --version
+      docker compose version
+
+1.3 Si vas a desplegar en un servidor Linux en vez de este equipo, allí basta
+    Docker Engine + el plugin compose; copia el repo completo al servidor y
+    sigue la misma guía desde el Paso 2.
+
+1.4 Acceso de red a la BD: el contenedor sale por NAT del host, así que
+    alcanza <IP_PRIVADA_CLOUD_SQL>:5432 siempre que el HOST la alcance. Verifícalo
+    antes desde el host:
+      Test-NetConnection <IP_PRIVADA_CLOUD_SQL> -Port 5432        (PowerShell)
+
+
+------------------------------------------------------------------------------
+ PASO 2 — Crear el .env.docker
+------------------------------------------------------------------------------
+2.1 Copia la plantilla (desde la raíz del repo):
+      copy .env.docker.example .env.docker              (PowerShell/CMD)
+      cp .env.docker.example .env.docker                (bash)
+
+2.2 Abre .env.docker y rellena. Los dos valores CRITICOS hay que copiarlos TAL
+    CUAL desde el .env actual (líneas 24 y 31 de ese archivo):
+
+      JWT_SECRET=<el mismo de .env>
+      APP_ENCRYPTION_KEY=<el mismo de .env>
+
+    ¡APP_ENCRYPTION_KEY no se puede cambiar! Es la clave AES-256-GCM que cifra
+    la cuenta de servicio de GCP guardada en la tabla app_settings. Si pones
+    otra, la app arranca pero el sync falla al no poder descifrarla, y habrá
+    que volver a subir el JSON en Settings. (Si cambias JWT_SECRET solo pasa
+    algo menor: las sesiones abiertas se invalidan y hay que volver a loguear.)
+
+2.3 Reglas del formato env_file de Docker — no es un .env de Node:
+      - sin comillas:   JWT_SECRET=abc123      NO   JWT_SECRET="abc123"
+      - sin espacios alrededor del =
+      - sin comentarios al final de una línea con valor
+      - $OTRA_VAR no se expande
+
+2.4 VITE_API_URL no va aquí. Es una variable de BUILD del frontend y debe
+    quedar SIN definir para que el cliente use '/api' relativo (mismo origen).
+    Si la definieras en el build, romperías las cookies de sesión.
+
+
+------------------------------------------------------------------------------
+ PASO 3 — Elegir la base de datos (una de las dos)
+------------------------------------------------------------------------------
+OPCION A (recomendada) — Reusar la BD que ya tienes en Cloud SQL
+  El esquema (migraciones 001-004) y el usuario admin YA EXISTEN ahí, así que
+  te puedes saltar los Pasos 6 y 7. En .env.docker:
+
+      DATABASE_URL=postgresql://csqlim:LA_PASSWORD@<IP_PRIVADA_CLOUD_SQL>:5432/csql_inventory
+
+  Ojo: NUNCA pongas localhost en DATABASE_URL. Dentro del contenedor localhost
+  es el propio contenedor, no tu máquina. Si la BD corriera en el host, se usa
+  host.docker.internal en lugar de localhost.
+
+OPCION B — PostgreSQL en un contenedor, en el mismo host
+  En .env.docker el host es el nombre del servicio del compose ('postgres'):
+
+      DATABASE_URL=postgresql://csqlim:PASSWORD_FUERTE@postgres:5432/csql_inventory
+      POSTGRES_USER=csqlim
+      POSTGRES_PASSWORD=PASSWORD_FUERTE
+      POSTGRES_DB=csql_inventory
+
+  (POSTGRES_PASSWORD y la password dentro de DATABASE_URL deben ser idénticas.)
+  Con esta opción SI hay que hacer los Pasos 6 y 7: la BD nace vacía. Y añade
+  --profile with-db a todos los comandos de compose.
+  Los datos viven en el volumen 'pg_data_prod' (sobrevive a recrear el
+  contenedor; se borra con 'docker compose ... down -v').
+
+
+------------------------------------------------------------------------------
+ PASO 4 — Construir la imagen
+------------------------------------------------------------------------------
+Desde la RAIZ del repo (donde está el Dockerfile):
+
+      docker compose -f docker-compose.prod.yml build
+
+La primera vez tarda unos minutos (descarga node:24-slim + npm ci de cliente y
+servidor). Las siguientes son rápidas: mientras no cambien los package-lock,
+Docker reutiliza las capas de dependencias.
+
+Si prefieres docker a secas:
+      docker build -t csql-inventory-manager:latest .
+
+
+------------------------------------------------------------------------------
+ PASO 5 — Arrancar
+------------------------------------------------------------------------------
+5.1 Opción A (BD externa):
+      docker compose -f docker-compose.prod.yml up -d
+
+    Opción B (con PostgreSQL en contenedor):
+      docker compose -f docker-compose.prod.yml --profile with-db up -d
+
+5.2 Ver que quedó arriba y sano:
+      docker compose -f docker-compose.prod.yml ps
+      docker compose -f docker-compose.prod.yml logs -f app
+
+    En los logs debe aparecer:
+      [DB] Connection OK
+      [SERVER] Running on http://0.0.0.0:3001 (production)
+
+    El estado del contenedor pasa a "healthy" a los ~20-30s (HEALTHCHECK
+    contra /health).
+
+5.3 Con la opción B, el contenedor 'app' puede reiniciarse una o dos veces al
+    principio si PostgreSQL todavía está inicializando: la app corta el arranque
+    cuando no hay BD y el restart:unless-stopped la vuelve a levantar. Se
+    estabiliza solo en cuanto PG acepta conexiones.
+
+5.4 Equivalente sin compose:
+      docker run -d --name csql_inventory_app --restart unless-stopped \
+        --env-file .env.docker -p 8080:3001 csql-inventory-manager:latest
+
+
+------------------------------------------------------------------------------
+ PASO 6 — Migraciones (SOLO si la BD es nueva: opción B)
+------------------------------------------------------------------------------
+El runner es idempotente: registra lo aplicado en la tabla schema_migrations y
+además detecta un esquema preexistente (marca 001 como aplicada sin recrearla).
+
+      docker compose -f docker-compose.prod.yml exec app node migrate.js
+
+Con docker a secas:
+      docker exec -it csql_inventory_app node migrate.js
+
+OJO: dentro del contenedor se ejecuta 'node migrate.js', NO 'npm run migrate'.
+El script de npm incluye --env-file=../.env, archivo que no existe en la
+imagen, y fallaría con ENOENT. Lo mismo aplica a 'npm start' vs
+'node src/app.js' (por eso el CMD del Dockerfile es el segundo).
+
+Recordatorio de permisos: el usuario csqlim NO tiene privilegio CREATE en la BD.
+Si las migraciones fallan con "permission denied for schema public", hay que
+otorgarlo antes con un usuario admin de PostgreSQL:
+      GRANT CREATE ON SCHEMA public TO csqlim;
+
+
+------------------------------------------------------------------------------
+ PASO 7 — Crear el usuario administrador (SOLO si la BD es nueva)
+------------------------------------------------------------------------------
+      docker compose -f docker-compose.prod.yml exec app \
+        node create-admin.js --email=tu.correo@example.com \
+                             --name="Tu Nombre" --password="MinimoOchoChars"
+
+Si el correo ya existe, lo promueve a admin, lo reactiva y le actualiza la
+contraseña. La contraseña se hashea con bcrypt (12 rondas).
+
+Si la BD es la existente (opción A) NO hace falta: ya hay un admin,
+admin@local.com. Pero aprovecha para crear tu usuario real con este comando y
+luego, desde la UI (Usuarios), desactiva las tres cuentas de prueba
+admin@local.com / operator@local.com / viewer@local.com.
+
+
+------------------------------------------------------------------------------
+ PASO 8 — Verificar
+------------------------------------------------------------------------------
+8.1 Health check:
+      curl http://localhost:8080/health
+    Debe devolver:  {"status":"ok","timestamp":"..."}
+
+8.2 Abre http://localhost:8080 en el navegador. Debe cargar el login (fondo
+    oscuro, acento cyan). Entra con tu usuario del Paso 7.
+
+8.3 Ya dentro: Dashboard con KPIs, Inventario con la tabla, y en el menú
+    Usuarios y Configuración visibles (solo los ve un admin).
+
+8.4 Sync con GCP: la cuenta de servicio se sube desde Configuración
+    (Settings) -> se guarda cifrada en BD -> botón "Probar" -> Guardar. Esa SA
+    necesita 'roles/cloudsql.viewer' en cada proyecto a inventariar. Luego
+    dispara el Sync desde el sidebar.
+    Alternativa por archivo (ADC): pon el JSON en <raiz>/credentials/,
+    descomenta el bloque volumes: del compose y define en .env.docker
+    GOOGLE_APPLICATION_CREDENTIALS=/secrets/service-account.json
+    La app usa la SA de Settings si existe; si no, cae a ADC.
+
+
+------------------------------------------------------------------------------
+ PASO 9 — Publicar por HTTPS (producción)
+------------------------------------------------------------------------------
+Mientras sirvas por HTTP en localhost puedes dejar COOKIE_SECURE=false. En
+cuanto la app quede accesible a otras personas, ponla detrás de HTTPS con un
+reverse proxy (nginx, Traefik, Caddy o el balanceador corporativo) y cambia DOS
+variables en .env.docker:
+
+      COOKIE_SECURE=true      # la cookie de sesión solo viaja por HTTPS
+      TRUST_PROXY=1           # nº de saltos de proxy hasta el cliente
+
+Por qué importan:
+  - COOKIE_SECURE=true sin HTTPS rompe el login (el navegador descarta la
+    cookie). Y en false sobre una red compartida, la sesión viaja en claro.
+  - Sin TRUST_PROXY el rate-limit de login cuenta los intentos por la IP del
+    proxy, que es la misma para TODOS: 5 fallos de cualquiera bloquean a todo
+    el mundo. Con un valor de más saltos que los reales, se puede falsear
+    X-Forwarded-For. Pon el número exacto.
+
+Tras editar .env.docker hay que recrear el contenedor (Paso 10.2); un simple
+restart no relee el env_file.
+
+Ejemplo mínimo de nginx delante (proxy_pass al 8080 publicado):
+      location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+      }
+
+
+------------------------------------------------------------------------------
+ PASO 10 — Operación del día a día
+------------------------------------------------------------------------------
+Todos los comandos desde la raíz del repo. Añade --profile with-db si usas la
+opción B.
+
+10.1 Logs:            docker compose -f docker-compose.prod.yml logs -f app
+     Estado:          docker compose -f docker-compose.prod.yml ps
+     Shell dentro:    docker compose -f docker-compose.prod.yml exec app sh
+
+10.2 Aplicar cambios de .env.docker (recrear, no basta reiniciar):
+       docker compose -f docker-compose.prod.yml up -d --force-recreate app
+
+10.3 Desplegar cambios de código (rebuild + reemplazo):
+       docker compose -f docker-compose.prod.yml up -d --build
+     Y si hubo migraciones nuevas, correr el Paso 6 después.
+
+10.4 Parar / parar y borrar el contenedor (los datos del volumen sobreviven):
+       docker compose -f docker-compose.prod.yml stop
+       docker compose -f docker-compose.prod.yml down
+     CUIDADO: 'down -v' borra también el volumen pg_data_prod (opción B) y con
+     él TODA la base de datos.
+
+10.5 Backup de la BD (opción B, PG en contenedor):
+       docker compose -f docker-compose.prod.yml exec postgres \
+         pg_dump -U csqlim csql_inventory > backup_csql_$(date +%F).sql
+     Restaurar:
+       docker compose -f docker-compose.prod.yml exec -T postgres \
+         psql -U csqlim -d csql_inventory < backup_csql_2026-08-03.sql
+     (Con la opción A el backup lo gestiona Cloud SQL.)
+
+10.6 Arranque automático al reiniciar el host: ya cubierto por
+     restart: unless-stopped, siempre que Docker arranque como servicio
+     (en Docker Desktop: Settings -> General -> Start Docker Desktop when you
+     log in).
+
+
+------------------------------------------------------------------------------
+ PROBLEMAS FRECUENTES
+------------------------------------------------------------------------------
+"Missing required env var: DATABASE_URL" (o JWT_SECRET / APP_ENCRYPTION_KEY)
+    Falta .env.docker, o está mal escrito el nombre, o usaste comillas en el
+    valor. Verifica lo que ve el contenedor:
+      docker compose -f docker-compose.prod.yml exec app env | findstr DATABASE
+
+"ECONNREFUSED 127.0.0.1:5432" al arrancar
+    DATABASE_URL apunta a localhost. Ver Paso 3: usa la IP real,
+    host.docker.internal, o 'postgres'.
+
+"ETIMEDOUT" o "no route to host" hacia <IP_PRIVADA_CLOUD_SQL>
+    Problema de red del host (VPN corporativa caída, o esa IP privada no es
+    ruteable desde donde corre Docker). Pruébalo desde el host primero.
+
+"ENOENT: no such file or directory, open '../.env'"
+    Ejecutaste 'npm start' o 'npm run migrate' dentro del contenedor. Usa
+    'node src/app.js' / 'node migrate.js' (ver Paso 6).
+
+El login devuelve 200 pero vuelve a la pantalla de login
+    COOKIE_SECURE=true sirviendo por HTTP: el navegador descarta la cookie.
+    Ponlo en false, o sirve por HTTPS.
+
+403 "Invalid CSRF token" en cualquier acción
+    Señal de que el frontend no está en el mismo origen que la API. Con esta
+    imagen no debería pasar; revisa que no hayas definido VITE_API_URL en el
+    build ni FRONTEND_ORIGIN apuntando a otro dominio.
+
+"Too many requests" al intentar el sync
+    Es el rate-limit: 1 sync cada 5 minutos (SYNC_RATE_LIMIT_*). Normal.
+
+La página carga en blanco / 404 en la raíz
+    server/public no se compiló. Reconstruye sin caché:
+      docker compose -f docker-compose.prod.yml build --no-cache
+
+"permission denied for schema public" en las migraciones
+    Ver la nota de privilegios al final del Paso 6.
+
+
+------------------------------------------------------------------------------
+ CHECKLIST ANTES DE DAR ACCESO A OTRAS PERSONAS
+------------------------------------------------------------------------------
+  [ ] APP_ENCRYPTION_KEY idéntica a la del .env original
+  [ ] Tu usuario admin real creado (Paso 7)
+  [ ] Cuentas de prueba admin@local.com / operator@local.com / viewer@local.com
+      desactivadas o eliminadas desde la pantalla Usuarios
+  [ ] Password del usuario csqlim de PostgreSQL cambiada si sigue siendo la de
+      desarrollo (csqlim_dev)
+  [ ] HTTPS delante + COOKIE_SECURE=true + TRUST_PROXY con el nº real de saltos
+  [ ] .env.docker NO commiteado (ya cubierto por .gitignore)
+  [ ] Backup de la BD probado (Paso 10.5) si la BD vive en el contenedor
+  [ ] /health responde y el contenedor figura como "healthy"
+
+==============================================================================
+ Nota: el Dockerfile de la raíz es el MISMO que referencia
+ DEPLOY_CLOUD_RUN.txt (Paso 2 de ese documento). Ya está creado, así que si
+ algún día despliegas en Cloud Run puedes saltarte ese paso; Cloud Run inyecta
+ PORT=8080 y la app lo lee automáticamente.
+==============================================================================

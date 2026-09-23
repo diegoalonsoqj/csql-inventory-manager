@@ -1,0 +1,33 @@
+# Secretos y entorno (¡nunca commitear!)
+# Se ignora TODO .env* (incluido .env.docker) salvo las plantillas *.example.
+.env*
+!.env.example
+!.env.docker.example
+*.local
+
+# Credenciales de cuentas de servicio GCP
+credentials/
+*service-account*.json
+*-key.json
+
+# Dependencias
+node_modules/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Sistema operativo / editores
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# NOTA: server/public/ (build del frontend) NO se ignora a propósito,
+# por si el despliegue versiona los assets compilados. Si prefieres
+# generarlo en cada deploy, agrega aquí "server/public/".
+
+# Scripts atados a la máquina local
+create-task.ps1
+start-app.bat
+start-pm2.cmd

@@ -1,0 +1,46 @@
+# Contexto de build de Docker: fuera secretos y todo lo que no va en la imagen.
+
+# Secretos y entorno (las env vars se inyectan en runtime, nunca en la imagen)
+.env
+.env.*
+credentials/
+*service-account*.json
+*-key.json
+
+# Dependencias: se reinstalan dentro del build con npm ci
+node_modules/
+**/node_modules/
+
+# Build del frontend: se regenera dentro del Dockerfile (evita assets viejos)
+server/public/
+
+# Git y editores
+.git/
+.gitignore
+.idea/
+.vscode/
+
+# Docs, scripts de host y utilidades que no necesita el contenedor
+*.md
+DEPLOY_*.txt
+docker-compose*.yml
+Dockerfile
+.dockerignore
+*.ps1
+*.bat
+*.cmd
+ecosystem.config.cjs
+base/
+scripts/
+
+# Utilidades de desarrollo del servidor que no van en la imagen
+# (check-sqlite.js importa better-sqlite3, que es devDependency)
+server/check-*.js
+server/test-*.js
+server/read-excel.js
+
+# Logs y basura del SO
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db

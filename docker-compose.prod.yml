@@ -1,0 +1,64 @@
+# ============================================================================
+#  CSQL-IM — despliegue con Docker Compose
+#
+#  Con BD externa (Cloud SQL o PG ya existente):
+#     docker compose -f docker-compose.prod.yml up -d --build
+#
+#  Levantando además un PostgreSQL 16 en este mismo host:
+#     docker compose -f docker-compose.prod.yml --profile with-db up -d --build
+#
+#  Nota: docker-compose.yml (sin sufijo) es el PG de desarrollo; este archivo es
+#  independiente y no interfiere con él (usa otro volumen y otros nombres).
+# ============================================================================
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: csql-inventory-manager:latest
+    container_name: csql_inventory_app
+    restart: unless-stopped
+    init: true
+    env_file:
+      - .env.docker
+    ports:
+      # host:contenedor  ->  la app queda en http://localhost:8080
+      - "8080:3001"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:'+(process.env.PORT||3001)+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    # Descomenta SOLO si montas la cuenta de servicio GCP como archivo en vez de
+    # subirla desde la pantalla Settings (y define GOOGLE_APPLICATION_CREDENTIALS).
+    # volumes:
+    #   - ./credentials:/secrets:ro
+
+  # PostgreSQL opcional, solo con --profile with-db.
+  # Si lo usas, en .env.docker: DATABASE_URL=postgresql://csqlim:PASS@postgres:5432/csql_inventory
+  postgres:
+    profiles: ["with-db"]
+    image: postgres:16-alpine
+    container_name: csql_inventory_pg_prod
+    restart: unless-stopped
+    env_file:
+      - .env.docker
+    volumes:
+      - pg_data_prod:/var/lib/postgresql/data
+    # Sin "ports": solo accesible desde la red interna del compose. Publícalo
+    # (ej. "127.0.0.1:5433:5432") únicamente si necesitas conectarte con un
+    # cliente SQL desde el host.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-csqlim} -d $${POSTGRES_DB:-csql_inventory}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pg_data_prod:
