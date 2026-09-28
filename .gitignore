@@ -27,6 +27,9 @@ Thumbs.db
 # por si el despliegue versiona los assets compilados. Si prefieres
 # generarlo en cada deploy, agrega aquí "server/public/".
 
+# Instrucciones locales del asistente (no se versionan)
+CLAUDE.md
+
 # Scripts atados a la máquina local
 create-task.ps1
 start-app.bat
