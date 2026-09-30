@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Plus, Pencil, KeyRound, UserX, UserCheck, Search, ChevronLeft, ChevronRight, ShieldCheck, Eye, Wrench, Network } from 'lucide-react';
+import { Plus, Pencil, KeyRound, UserX, UserCheck, Trash2, Search, ChevronLeft, ChevronRight, ShieldCheck, Eye, Wrench, Network } from 'lucide-react';
 import { Header } from '../components/layout/Header.jsx';
 import { UserModal } from '../components/users/UserModal.jsx';
 import { ResetPasswordModal } from '../components/users/ResetPasswordModal.jsx';
+import { DeleteUserModal } from '../components/users/DeleteUserModal.jsx';
 import { useUsers } from '../hooks/useUsers.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { api } from '../api/client.js';
@@ -56,6 +57,7 @@ export function UsersPage() {
   const { data, loading, error, filters, updateFilter, refresh } = useUsers();
   const [editing, setEditing] = useState(null);   // usuario a editar o {} para nuevo
   const [resetting, setResetting] = useState(null);
+  const [deleting, setDeleting] = useState(null);
   const [actionError, setActionError] = useState('');
 
   const users = data?.data ?? [];
@@ -64,11 +66,7 @@ export function UsersPage() {
   const handleToggleActive = async (u) => {
     setActionError('');
     try {
-      if (u.is_active) {
-        await api.deactivateUser(u.id);
-      } else {
-        await api.updateUser(u.id, { is_active: true });
-      }
+      await api.updateUser(u.id, { is_active: !u.is_active });
       refresh();
     } catch (err) {
       setActionError(err.message);
@@ -197,18 +195,27 @@ export function UsersPage() {
                               </button>
                             )}
                             {u.id !== currentUser.id && (
-                              <button
-                                onClick={() => handleToggleActive(u)}
-                                title={u.is_active ? 'Desactivar' : 'Reactivar'}
-                                className={cn(
-                                  'p-1.5 rounded-lg transition-colors',
-                                  u.is_active
-                                    ? 'text-white/30 hover:text-red-400 hover:bg-red-400/10'
-                                    : 'text-white/30 hover:text-green-400 hover:bg-green-400/10'
-                                )}
-                              >
-                                {u.is_active ? <UserX size={14} /> : <UserCheck size={14} />}
-                              </button>
+                              <>
+                                <button
+                                  onClick={() => handleToggleActive(u)}
+                                  title={u.is_active ? 'Desactivar' : 'Reactivar'}
+                                  className={cn(
+                                    'p-1.5 rounded-lg transition-colors',
+                                    u.is_active
+                                      ? 'text-white/30 hover:text-red-400 hover:bg-red-400/10'
+                                      : 'text-white/30 hover:text-green-400 hover:bg-green-400/10'
+                                  )}
+                                >
+                                  {u.is_active ? <UserX size={14} /> : <UserCheck size={14} />}
+                                </button>
+                                <button
+                                  onClick={() => setDeleting(u)}
+                                  title="Eliminar"
+                                  className="p-1.5 rounded-lg text-white/30 hover:text-red-400 hover:bg-red-400/10 transition-colors"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </>
                             )}
                           </div>
                         </td>
@@ -257,6 +264,13 @@ export function UsersPage() {
         <ResetPasswordModal
           user={resetting}
           onClose={() => setResetting(null)}
+        />
+      )}
+      {deleting && (
+        <DeleteUserModal
+          user={deleting}
+          onClose={() => setDeleting(null)}
+          onDeleted={refresh}
         />
       )}
     </div>

@@ -4,7 +4,7 @@ import {
   createUser,
   updateUser,
   resetPassword,
-  deactivateUser,
+  deleteUser,
   countAdmins,
 } from '../services/user.service.js';
 import { requireAuth, requireAdmin } from '../middleware/auth.js';
@@ -45,6 +45,10 @@ router.patch('/:id', validateBody(updateUserSchema), async (req, res) => {
   const id = Number(req.params.id);
   const body = req.validatedBody;
 
+  if (id === req.user.id && body.is_active === false) {
+    return res.status(400).json({ error: { message: 'No puedes desactivar tu propia cuenta' } });
+  }
+
   // No permitir que un admin se quite a sí mismo el rol o se desactive
   // si es el último admin activo.
   const removingAdminPower =
@@ -72,7 +76,7 @@ router.delete('/:id', async (req, res) => {
   const id = Number(req.params.id);
 
   if (id === req.user.id) {
-    return res.status(400).json({ error: { message: 'No puedes desactivar tu propia cuenta' } });
+    return res.status(400).json({ error: { message: 'No puedes eliminar tu propia cuenta' } });
   }
 
   const remaining = await countAdmins({ excludeId: id });
@@ -82,7 +86,7 @@ router.delete('/:id', async (req, res) => {
     });
   }
 
-  const user = await deactivateUser(id);
+  const user = await deleteUser(id);
   res.json(user);
 });
 

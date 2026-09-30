@@ -68,7 +68,7 @@ export const api = {
   updateUser: (id, body) => request(`/users/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   resetUserPassword: (id, password) =>
     request(`/users/${id}/reset-password`, { method: 'POST', body: JSON.stringify({ password }) }),
-  deactivateUser: (id) => request(`/users/${id}`, { method: 'DELETE' }),
+  deleteUser: (id) => request(`/users/${id}`, { method: 'DELETE' }),
 
   // ── Settings ──────────────────────────────────────────
   getSettings: () => request('/settings'),

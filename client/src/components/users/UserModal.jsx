@@ -37,11 +37,13 @@ export function UserModal({ user, onClose, onSaved }) {
       if (!form.ad_username.trim()) e.ad_username = 'El usuario de red es obligatorio';
       else if (!AD_USERNAME_REGEX.test(form.ad_username.trim())) e.ad_username = 'Solo letras, dígitos, punto, guion y guion bajo';
       if (form.email.trim() && !EMAIL_REGEX.test(form.email.trim())) e.email = 'Correo inválido';
-    } else if (!isEdit) {
+    } else {
       if (!form.email.trim()) e.email = 'El correo es obligatorio';
-      else if (!EMAIL_REGEX.test(form.email)) e.email = 'Correo inválido';
-      if (!form.password) e.password = 'La contraseña es obligatoria';
-      else if (form.password.length < 8) e.password = 'Mínimo 8 caracteres';
+      else if (!EMAIL_REGEX.test(form.email.trim())) e.email = 'Correo inválido';
+      if (!isEdit) {
+        if (!form.password) e.password = 'La contraseña es obligatoria';
+        else if (form.password.length < 8) e.password = 'Mínimo 8 caracteres';
+      }
     }
     return e;
   };
@@ -58,7 +60,8 @@ export function UserModal({ user, onClose, onSaved }) {
         await api.updateUser(user.id, {
           full_name: form.full_name,
           role: form.role,
-          ...(isAd && { ad_username: form.ad_username.trim(), email: form.email.trim() }),
+          email: form.email.trim(),
+          ...(isAd && { ad_username: form.ad_username.trim() }),
         });
       } else if (isAd) {
         await api.createUser({
@@ -180,21 +183,25 @@ export function UserModal({ user, onClose, onSaved }) {
             {errors.full_name && <p className="text-xs text-red-400 mt-1">{errors.full_name}</p>}
           </div>
 
-          {(isAd || !isEdit) && (
-            <div>
-              <label className="block text-xs font-medium text-white/60 mb-1.5">
-                Correo {isAd && <span className="text-white/30 font-normal">(opcional)</span>}
-              </label>
-              <input
-                type="email"
-                placeholder="usuario@interseguro.com.pe"
-                value={form.email}
-                onChange={(e) => handleChange('email', e.target.value)}
-                className={`${inputCls} font-mono`}
-              />
-              {errors.email && <p className="text-xs text-red-400 mt-1">{errors.email}</p>}
-            </div>
-          )}
+          <div>
+            <label className="block text-xs font-medium text-white/60 mb-1.5">
+              Correo {isAd && <span className="text-white/30 font-normal">(opcional)</span>}
+            </label>
+            <input
+              type="email"
+              placeholder="usuario@interseguro.com.pe"
+              value={form.email}
+              onChange={(e) => handleChange('email', e.target.value)}
+              className={`${inputCls} font-mono`}
+            />
+            {errors.email ? (
+              <p className="text-xs text-red-400 mt-1">{errors.email}</p>
+            ) : (
+              !isAd && isEdit && (
+                <p className="text-xs text-white/30 mt-1">Es el correo con el que inicia sesión.</p>
+              )
+            )}
+          </div>
 
           {!isAd && !isEdit && (
             <div>

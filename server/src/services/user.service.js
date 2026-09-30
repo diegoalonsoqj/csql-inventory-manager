@@ -111,11 +111,15 @@ export async function updateUser(id, { full_name, role, is_active, ad_username, 
   const sets = [];
   const params = [];
 
-  // Usuario de red y correo solo se editan en usuarios AD: en los locales el
-  // correo es el login y se mantiene fijo.
+  // El usuario de red solo existe en usuarios AD. En los locales el correo es
+  // el login, así que se puede cambiar pero no dejar vacío.
   if (ad_username !== undefined || email !== undefined) {
-    if ((await getAuthType(id)) !== 'ad') {
-      throw httpError('El usuario de red y el correo solo se editan en usuarios de AD', 400);
+    const authType = await getAuthType(id);
+    if (ad_username !== undefined && authType !== 'ad') {
+      throw httpError('El usuario de red solo se edita en usuarios de AD', 400);
+    }
+    if (email !== undefined && !email && authType === 'local') {
+      throw httpError('El correo es obligatorio en usuarios locales', 400);
     }
   }
 
@@ -193,19 +197,16 @@ export async function changeOwnPassword(id, currentPassword, newPassword) {
 }
 
 /**
- * Desactiva (soft-delete) un usuario. No eliminamos filas para preservar
- * integridad de logs/auditoría futura.
+ * Elimina un usuario definitivamente. Para quitar el acceso sin perder el
+ * registro está la desactivación (PATCH is_active=false). Las referencias en
+ * app_settings.updated_by quedan en NULL por la FK (ON DELETE SET NULL).
  */
-export async function deactivateUser(id) {
+export async function deleteUser(id) {
   const result = await query(
-    `UPDATE users SET is_active = false WHERE id = $1 RETURNING ${PUBLIC_COLUMNS}`,
+    `DELETE FROM users WHERE id = $1 RETURNING ${PUBLIC_COLUMNS}`,
     [id]
   );
-  if (!result.rows.length) {
-    const err = new Error('Usuario no encontrado');
-    err.status = 404;
-    throw err;
-  }
+  if (!result.rows.length) throw httpError('Usuario no encontrado', 404);
   return result.rows[0];
 }
 
