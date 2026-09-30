@@ -167,7 +167,11 @@ async function syncProject(token, projectId, syncedAt) {
       const dbData = await gcpGet(token, `${projectId}/instances/${inst.name}/databases`);
       const databases = dbData.items ?? [];
 
-      const SYSTEM_DBS = new Set(['information_schema', 'performance_schema', 'mysql', 'sys', 'postgres', 'cloudsqladmin']);
+      const SYSTEM_DBS = new Set([
+        'information_schema', 'performance_schema', 'mysql', 'sys', // MySQL
+        'postgres', 'cloudsqladmin',                                 // PostgreSQL
+        'master', 'model', 'msdb', 'tempdb',                         // SQL Server
+      ]);
 
       await withConcurrency(databases, 10, async (db) => {
         const isSystem = SYSTEM_DBS.has(db.name);
