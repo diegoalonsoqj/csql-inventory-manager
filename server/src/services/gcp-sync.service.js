@@ -159,6 +159,10 @@ async function syncProject(token, projectId, syncedAt) {
 
     const instanceId = upsert.rows[0].id;
 
+    // La API rechaza listar BDs de una instancia que no está corriendo
+    // ("instance is not running"). Se conserva la última lista conocida.
+    if (effectiveState !== 'RUNNABLE') return;
+
     try {
       const dbData = await gcpGet(token, `${projectId}/instances/${inst.name}/databases`);
       const databases = dbData.items ?? [];
@@ -178,6 +182,13 @@ async function syncProject(token, projectId, syncedAt) {
           [instanceId, db.name, db.charset ?? null, db.collation ?? null, isSystem, syncedAt]
         );
       });
+
+      // Las BDs que GCP ya no devuelve fueron eliminadas. Solo se limpia tras
+      // un listado exitoso, para no vaciar la lista por un error transitorio.
+      await query(
+        `DELETE FROM csql_databases WHERE instance_id = $1 AND synced_at < $2`,
+        [instanceId, syncedAt]
+      );
     } catch (dbErr) {
       console.warn(`[SYNC] Could not list databases for ${projectId}/${inst.name}:`, dbErr.message);
     }

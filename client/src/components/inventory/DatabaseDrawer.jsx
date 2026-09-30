@@ -1,4 +1,4 @@
-import { X, Database, Shield } from 'lucide-react';
+import { X, Database, Shield, Info } from 'lucide-react';
 import { cn, formatDate } from '../../lib/utils.js';
 import { useInstanceDatabases } from '../../hooks/useInstances.js';
 
@@ -9,6 +9,11 @@ export function DatabaseDrawer({ instance, onClose }) {
 
   const userDbs = databases.filter((d) => !d.is_system);
   const systemDbs = databases.filter((d) => d.is_system);
+
+  // GCP solo lista las BDs de instancias en ejecución: para el resto se muestra
+  // la última lista que se pudo leer (o ninguna, si nunca estuvo encendida).
+  const notRunning = instance.state !== 'RUNNABLE';
+  const lastKnownAt = databases.reduce((max, d) => (!max || d.synced_at > max ? d.synced_at : max), null);
 
   return (
     <div className="fixed inset-0 z-50 flex">
@@ -74,6 +79,22 @@ export function DatabaseDrawer({ instance, onClose }) {
             <div className="text-sm text-white/30 text-center py-8">Cargando bases de datos…</div>
           ) : (
             <>
+              {notRunning && (
+                <div className="flex gap-2 bg-amber-400/10 border border-amber-400/20 rounded-lg px-3 py-2.5 mb-4">
+                  <Info size={14} className="text-amber-400 shrink-0 mt-0.5" />
+                  <p className="text-xs text-amber-200/80">
+                    {instance.state === 'DELETED'
+                      ? 'La instancia ya no existe en GCP.'
+                      : 'La instancia no está en ejecución y GCP no permite listar sus bases de datos.'}{' '}
+                    {lastKnownAt
+                      ? `Se muestra la última lista conocida (${formatDate(lastKnownAt)}).`
+                      : instance.state === 'DELETED'
+                        ? 'No se llegaron a registrar sus bases de datos.'
+                        : 'Aparecerán cuando se encienda y se vuelva a sincronizar.'}
+                  </p>
+                </div>
+              )}
+
               <div className="flex items-center gap-2 mb-3">
                 <Database size={14} className="text-accent" />
                 <p className="text-xs font-medium text-white/60">
