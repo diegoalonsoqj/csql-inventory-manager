@@ -1,5 +1,6 @@
 import { query } from '../config/db.js';
 import { encrypt, decrypt } from '../lib/crypto.js';
+import { computeNextRunAt } from '../lib/sync-schedule.js';
 
 const SA_KEY = 'gcp_service_account';
 const TZ_KEY = 'timezone';
@@ -137,12 +138,59 @@ export async function setAdConfig({ enabled, url, domain, tlsVerify }, userId) {
   await setSetting('ad_tls_verify', { value: String(tlsVerify), userId });
 }
 
+// ── Sincronización automática ─────────────────────────────────
+
+/**
+ * Config del sync automático: { enabled, mode, intervalHours, times }.
+ * mode 'interval' = cada intervalHours horas; 'schedule' = a las horas fijas
+ * `times` ("HH:MM", en la zona horaria configurada).
+ */
+export async function getSyncSchedule() {
+  const all = await loadAll();
+  const times = (all.sync_times?.value ?? '08:00,14:00').split(',').filter(Boolean);
+  return {
+    enabled: all.sync_auto_enabled?.value === 'true',
+    mode: all.sync_mode?.value === 'schedule' ? 'schedule' : 'interval',
+    intervalHours: Number(all.sync_interval_hours?.value) || 6,
+    times,
+  };
+}
+
+export async function setSyncSchedule({ enabled, mode, intervalHours, times }, userId) {
+  await setSetting('sync_auto_enabled', { value: String(enabled), userId });
+  await setSetting('sync_mode', { value: mode, userId });
+  await setSetting('sync_interval_hours', { value: String(intervalHours), userId });
+  await setSetting('sync_times', { value: [...new Set(times)].sort().join(','), userId });
+}
+
+/**
+ * Config + cuándo toca el próximo sync automático (null si está deshabilitado).
+ */
+async function getSyncScheduleWithNextRun() {
+  const [schedule, tz, last] = await Promise.all([
+    getSyncSchedule(),
+    getTimezone(),
+    query('SELECT started_at FROM sync_log ORDER BY started_at DESC LIMIT 1'),
+  ]);
+  if (!schedule.enabled) return { ...schedule, nextRunAt: null };
+  const now = Date.now();
+  const lastStart = last.rows[0] ? new Date(last.rows[0].started_at).getTime() : 0;
+  // Si ya toca, el scheduler lo lanza en el próximo minuto.
+  const next = Math.max(computeNextRunAt(schedule, lastStart, now, tz), now);
+  return { ...schedule, nextRunAt: new Date(next).toISOString() };
+}
+
 /**
  * Settings completos y seguros para el panel de administración.
  */
 export async function getSettingsForAdmin() {
-  const [timezone, sa, ad] = await Promise.all([getTimezone(), getServiceAccountInfo(), getAdConfig()]);
-  return { timezone, gcpServiceAccount: sa, ad };
+  const [timezone, sa, ad, syncSchedule] = await Promise.all([
+    getTimezone(),
+    getServiceAccountInfo(),
+    getAdConfig(),
+    getSyncScheduleWithNextRun(),
+  ]);
+  return { timezone, gcpServiceAccount: sa, ad, syncSchedule };
 }
 
 /**

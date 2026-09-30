@@ -152,12 +152,27 @@ const adSettingsSchema = z.object({
   tlsVerify: z.boolean().default(true),
 });
 
+const syncScheduleSchema = z
+  .object({
+    enabled: z.boolean(),
+    mode: z.enum(['interval', 'schedule']),
+    intervalHours: z.number().int().min(1).max(24),
+    times: z
+      .array(z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Hora inválida (HH:MM)'))
+      .max(12, 'Máximo 12 horarios'),
+  })
+  .refine((d) => d.mode !== 'schedule' || d.times.length > 0, {
+    message: 'Agrega al menos un horario',
+    path: ['times'],
+  });
+
 export const updateSettingsSchema = z
   .object({
     timezone: timezoneSchema.optional(),
     // JSON de la cuenta de servicio como string. null = borrar la credencial.
     service_account_json: z.string().max(20000).nullable().optional(),
     ad: adSettingsSchema.optional(),
+    syncSchedule: syncScheduleSchema.optional(),
   })
   .refine((d) => Object.keys(d).length > 0, { message: 'Nada que actualizar' });
 

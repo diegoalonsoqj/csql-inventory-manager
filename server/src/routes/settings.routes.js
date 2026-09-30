@@ -8,6 +8,7 @@ import {
   parseAndValidateServiceAccount,
   getAdConfig,
   setAdConfig,
+  setSyncSchedule,
 } from '../services/settings.service.js';
 import { testGcpConnection } from '../services/gcp-sync.service.js';
 import { adAuthenticate, normalizeAdUsername } from '../services/ad.service.js';
@@ -31,7 +32,7 @@ router.get('/', async (req, res) => {
 });
 
 router.put('/', validateBody(updateSettingsSchema), async (req, res) => {
-  const { timezone, service_account_json, ad } = req.validatedBody;
+  const { timezone, service_account_json, ad, syncSchedule } = req.validatedBody;
 
   if (timezone !== undefined) {
     await setTimezone(timezone, req.user.id);
@@ -47,6 +48,10 @@ router.put('/', validateBody(updateSettingsSchema), async (req, res) => {
 
   if (ad !== undefined) {
     await setAdConfig(ad, req.user.id);
+  }
+
+  if (syncSchedule !== undefined) {
+    await setSyncSchedule(syncSchedule, req.user.id);
   }
 
   res.json(await getSettingsForAdmin());

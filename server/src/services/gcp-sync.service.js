@@ -199,13 +199,34 @@ async function syncProject(token, projectId, syncedAt) {
   });
 }
 
-export async function runSync() {
+// Un solo sync a la vez, lo lance el botón o el scheduler. En memoria: la app
+// corre como un único proceso (PM2 fork, 1 instancia).
+let syncInProgress = false;
+
+export function isSyncInProgress() {
+  return syncInProgress;
+}
+
+/**
+ * Lanza un sync en segundo plano. Devuelve false si ya hay uno en curso.
+ * `trigger`: 'manual' (botón) o 'auto' (scheduler).
+ */
+export function startSync(trigger = 'manual') {
+  if (syncInProgress) return false;
+  syncInProgress = true;
+  runSync({ trigger })
+    .catch((err) => console.error(`[SYNC] Failed (${trigger}):`, err.message))
+    .finally(() => { syncInProgress = false; });
+  return true;
+}
+
+export async function runSync({ trigger = 'manual' } = {}) {
   const token = await getToken();
   const syncedAt = new Date();
 
   const logResult = await query(
-    `INSERT INTO sync_log (started_at, status) VALUES ($1, 'running') RETURNING id`,
-    [syncedAt]
+    `INSERT INTO sync_log (started_at, status, triggered_by) VALUES ($1, 'running', $2) RETURNING id`,
+    [syncedAt, trigger]
   );
   const logId = logResult.rows[0].id;
   const startMs = Date.now();

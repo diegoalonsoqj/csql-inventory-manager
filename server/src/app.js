@@ -18,6 +18,7 @@ import instancesRoutes from './routes/instances.routes.js';
 import projectsRoutes from './routes/projects.routes.js';
 import syncRoutes from './routes/sync.routes.js';
 import exportRoutes from './routes/export.routes.js';
+import { startSyncScheduler } from './services/sync-scheduler.service.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -91,6 +92,7 @@ const start = async () => {
   app.listen(config.port, '0.0.0.0', () => {
     console.log(`[SERVER] Running on http://0.0.0.0:${config.port} (${config.nodeEnv})`);
   });
+  startSyncScheduler();
 };
 
 start().catch((err) => {

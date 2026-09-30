@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Loader2, Clock, KeyRound, Upload, CheckCircle2, XCircle, Trash2, ShieldCheck, Network, AlertTriangle } from 'lucide-react';
+import { Loader2, Clock, KeyRound, Upload, CheckCircle2, XCircle, Trash2, ShieldCheck, Network, AlertTriangle, CalendarClock, Plus, X } from 'lucide-react';
 import { Header } from '../components/layout/Header.jsx';
 import { api } from '../api/client.js';
 import { setAppTimezone, formatDate } from '../lib/utils.js';
@@ -60,6 +60,155 @@ function ResultBox({ result }) {
         : <XCircle size={15} className="text-red-400 mt-0.5 shrink-0" />}
       <p className={`text-xs break-words min-w-0 ${result.ok ? 'text-green-400' : 'text-red-400'}`}>{result.message}</p>
     </div>
+  );
+}
+
+const INTERVAL_OPTIONS = [1, 2, 3, 4, 6, 8, 12, 24];
+const DEFAULT_SYNC = { enabled: false, mode: 'interval', intervalHours: 6, times: ['08:00', '14:00'] };
+const MAX_TIMES = 12;
+
+function SyncScheduleCard({ initial, onSaved }) {
+  const pick = (s) => ({ enabled: s.enabled, mode: s.mode, intervalHours: s.intervalHours, times: s.times });
+  const [form, setForm] = useState(() => pick(initial ?? DEFAULT_SYNC));
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState('');
+
+  const dirty = JSON.stringify(form) !== JSON.stringify(pick(initial ?? DEFAULT_SYNC));
+  const update = (field, value) => { setForm((prev) => ({ ...prev, [field]: value })); setError(''); };
+  const setTime = (i, value) => update('times', form.times.map((t, j) => (j === i ? value : t)));
+  const addTime = () => update('times', [...form.times, '12:00']);
+  const removeTime = (i) => update('times', form.times.filter((_, j) => j !== i));
+
+  const handleSave = async () => {
+    const times = form.times.filter(Boolean);
+    if (form.mode === 'schedule' && times.length === 0) { setError('Agrega al menos un horario'); return; }
+    setSaving(true);
+    setSaved(false);
+    setError('');
+    try {
+      const s = await api.updateSettings({ syncSchedule: { ...form, times } });
+      setForm(pick(s.syncSchedule));
+      onSaved(s);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const modeBtn = (value, label) => (
+    <button
+      type="button"
+      onClick={() => update('mode', value)}
+      className={`flex-1 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+        form.mode === value
+          ? 'border-accent/40 bg-accent-muted text-accent'
+          : 'border-surface-border text-white/50 hover:text-white hover:bg-surface-hover'
+      }`}
+    >
+      {label}
+    </button>
+  );
+
+  return (
+    <Card
+      icon={CalendarClock}
+      title="Sincronización automática"
+      subtitle="Sincroniza con GCP sin tener que pulsar el botón. El botón Sync GCP sigue funcionando."
+    >
+      <div className="flex items-center justify-between gap-4 mb-4 p-3 rounded-lg bg-surface border border-surface-border">
+        <div className="min-w-0">
+          <p className="text-sm text-white/80">Habilitar sincronización automática</p>
+          <p className="text-xs text-white/40 mt-0.5">
+            {initial?.enabled && initial?.nextRunAt
+              ? `Próxima: ${formatDate(initial.nextRunAt)}`
+              : 'Deshabilitada, solo se sincroniza con el botón.'}
+          </p>
+        </div>
+        <Toggle checked={form.enabled} onChange={(v) => update('enabled', v)} label="Habilitar sincronización automática" />
+      </div>
+
+      <div className={form.enabled ? '' : 'opacity-50'}>
+        <label className="block text-xs font-medium text-white/60 mb-1.5">Frecuencia</label>
+        <div className="flex gap-2 mb-4">
+          {modeBtn('interval', 'Cada X horas')}
+          {modeBtn('schedule', 'A horas fijas')}
+        </div>
+
+        {form.mode === 'interval' ? (
+          <div>
+            <label className="block text-xs font-medium text-white/60 mb-1.5">Intervalo</label>
+            <select
+              value={form.intervalHours}
+              onChange={(e) => update('intervalHours', Number(e.target.value))}
+              className="w-full bg-surface border border-surface-border text-sm text-white/80 rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent/50"
+            >
+              {INTERVAL_OPTIONS.map((h) => (
+                <option key={h} value={h}>Cada {h} {h === 1 ? 'hora' : 'horas'}</option>
+              ))}
+            </select>
+            <p className="text-xs text-white/30 mt-2">
+              Recomendado. Cuenta desde el último sync, manual o automático: si alguien sincronizó hace poco,
+              el automático espera y no repite el trabajo.
+            </p>
+          </div>
+        ) : (
+          <div>
+            <label className="block text-xs font-medium text-white/60 mb-1.5">Horarios</label>
+            <div className="flex flex-wrap gap-2">
+              {form.times.map((t, i) => (
+                <div key={i} className="flex items-center gap-1 bg-surface border border-surface-border rounded-lg pl-2 pr-1 py-1">
+                  <input
+                    type="time"
+                    value={t}
+                    onChange={(e) => setTime(i, e.target.value)}
+                    className="bg-transparent text-sm font-mono text-white/80 focus:outline-none [color-scheme:dark]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeTime(i)}
+                    title="Quitar horario"
+                    className="p-1 rounded text-white/30 hover:text-red-400 hover:bg-red-400/10 transition-colors"
+                  >
+                    <X size={13} />
+                  </button>
+                </div>
+              ))}
+              {form.times.length < MAX_TIMES && (
+                <button
+                  type="button"
+                  onClick={addTime}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-dashed border-surface-border text-xs text-white/50 hover:text-accent hover:border-accent/40 transition-colors"
+                >
+                  <Plus size={13} />
+                  Agregar
+                </button>
+              )}
+            </div>
+            <p className="text-xs text-white/30 mt-2">
+              En la zona horaria configurada arriba. Útil si quieres el inventario al día a una hora concreta,
+              por ejemplo antes de empezar la jornada.
+            </p>
+          </div>
+        )}
+      </div>
+
+      {error && <p className="text-xs text-red-400 mt-3">{error}</p>}
+
+      <div className="flex justify-end mt-4">
+        <button
+          onClick={handleSave}
+          disabled={saving || !dirty}
+          className="flex items-center gap-2 px-4 py-2.5 bg-accent text-surface text-sm font-medium rounded-lg hover:bg-accent/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          {saving && <Loader2 size={14} className="animate-spin" />}
+          {saved ? 'Guardado ✓' : 'Guardar'}
+        </button>
+      </div>
+    </Card>
   );
 }
 
@@ -274,6 +423,13 @@ export function SettingsPage() {
               </div>
               <p className="text-xs text-white/30 mt-2">Ejemplo de fecha: {formatDate(new Date().toISOString())}</p>
             </Card>
+
+            {/* Sincronización automática. key: se remonta con los valores guardados. */}
+            <SyncScheduleCard
+              key={JSON.stringify(settings?.syncSchedule)}
+              initial={settings?.syncSchedule}
+              onSaved={setSettings}
+            />
 
             {/* Active Directory */}
             <Card

@@ -138,7 +138,10 @@ export function Sidebar({ collapsed, onToggle }) {
                   </span>
                 )}
               </p>
-              <p className="text-xs text-white/30 mt-0.5">{formatDate(lastSync.started_at)}</p>
+              <p className="text-xs text-white/30 mt-0.5">
+              {formatDate(lastSync.started_at)}
+              {lastSync.triggered_by === 'auto' && ' · automático'}
+            </p>
             </button>
           )}
 
