@@ -74,6 +74,8 @@ export const api = {
   getSettings: () => request('/settings'),
   getPublicSettings: () => request('/settings/public'),
   updateSettings: (body) => request('/settings', { method: 'PUT', body: JSON.stringify(body) }),
+  testAdConnection: (body) =>
+    request('/settings/ad/test', { method: 'POST', body: JSON.stringify(body) }),
   testGcpCredential: (service_account_json) =>
     request('/settings/gcp/test', {
       method: 'POST',

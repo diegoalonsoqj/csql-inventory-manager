@@ -20,6 +20,17 @@ export const loginRateLimiter = rateLimit({
   message: { error: { message: 'Demasiados intentos de inicio de sesión. Intenta de nuevo en 15 minutos.' } },
 });
 
+// La prueba de AD hace un bind real: se limita para que no sirva para probar
+// contraseñas de dominio ni bloquee cuentas por intentos fallidos.
+export const adTestRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+  message: { error: { message: 'Demasiadas pruebas de AD. Intenta de nuevo en 15 minutos.' } },
+});
+
 // Protege el cambio de contraseña propia contra fuerza bruta de la contraseña
 // actual: 5 intentos fallidos cada 15 min. Se aplica DESPUÉS de requireAuth,
 // así que se limita por usuario (con fallback a IP por robustez).

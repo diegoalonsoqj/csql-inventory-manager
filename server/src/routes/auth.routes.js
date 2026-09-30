@@ -8,8 +8,8 @@ import { validateBody, loginSchema, changePasswordSchema } from '../middleware/v
 const router = Router();
 
 router.post('/login', loginRateLimiter, validateBody(loginSchema), async (req, res) => {
-  const { email, password } = req.validatedBody;
-  const user = await login(email, password);
+  const { username, password } = req.validatedBody;
+  const user = await login(username, password);
   // Establece la cookie de sesión (httpOnly) y la cookie CSRF.
   issueSession(res, user);
   res.json({ user });

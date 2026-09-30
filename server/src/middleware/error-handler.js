@@ -7,8 +7,8 @@ export function errorHandler(err, req, res, next) {
 
   // Los errores 4xx son fallos esperados del cliente y su mensaje es seguro
   // de exponer. Los 5xx pueden filtrar detalles internos, así que se ocultan
-  // en producción.
-  const safeToExpose = config.isDev || status < 500;
+  // en producción, salvo que el error se marque explícitamente con expose.
+  const safeToExpose = config.isDev || status < 500 || err.expose === true;
 
   res.status(status).json({
     error: {

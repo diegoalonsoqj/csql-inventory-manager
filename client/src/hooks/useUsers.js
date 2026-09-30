@@ -4,6 +4,7 @@ import { api } from '../api/client.js';
 const DEFAULT_FILTERS = {
   search: '',
   role: '',
+  auth_type: '',
   is_active: '',
   page: 1,
   limit: 50,

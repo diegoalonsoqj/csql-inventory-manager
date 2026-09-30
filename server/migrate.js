@@ -14,6 +14,7 @@ const migrations = [
   join(__dirname, 'src/db/migrations/003_settings.sql'),
   join(__dirname, 'src/db/migrations/004_operator_role.sql'),
   join(__dirname, 'src/db/migrations/005_sync_failures.sql'),
+  join(__dirname, 'src/db/migrations/006_ad_auth.sql'),
 ];
 
 async function migrate() {

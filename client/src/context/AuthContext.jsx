@@ -51,8 +51,9 @@ export function AuthProvider({ children }) {
     return () => window.removeEventListener('auth:unauthorized', handler);
   }, []);
 
-  const login = useCallback(async (email, password) => {
-    const { user } = await api.login({ email, password });
+  // username: correo (usuarios locales) o usuario de red (AD).
+  const login = useCallback(async (username, password) => {
+    const { user } = await api.login({ username, password });
     setUser(user);
     return user;
   }, []);

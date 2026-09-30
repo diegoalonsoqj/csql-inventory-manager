@@ -114,12 +114,35 @@ export async function getServiceAccountInfo() {
   };
 }
 
+// ── Active Directory ──────────────────────────────────────────
+
+/**
+ * Config AD: { enabled, url, domain, tlsVerify }. No hay secretos: el bind se
+ * hace con las credenciales del propio usuario (DOMINIO\usuario).
+ */
+export async function getAdConfig() {
+  const all = await loadAll();
+  return {
+    enabled: all.ad_enabled?.value === 'true',
+    url: all.ad_url?.value ?? '',
+    domain: all.ad_domain?.value ?? '',
+    tlsVerify: all.ad_tls_verify?.value !== 'false',
+  };
+}
+
+export async function setAdConfig({ enabled, url, domain, tlsVerify }, userId) {
+  await setSetting('ad_enabled', { value: String(enabled), userId });
+  await setSetting('ad_url', { value: url.trim(), userId });
+  await setSetting('ad_domain', { value: domain.trim().toUpperCase(), userId });
+  await setSetting('ad_tls_verify', { value: String(tlsVerify), userId });
+}
+
 /**
  * Settings completos y seguros para el panel de administración.
  */
 export async function getSettingsForAdmin() {
-  const [timezone, sa] = await Promise.all([getTimezone(), getServiceAccountInfo()]);
-  return { timezone, gcpServiceAccount: sa };
+  const [timezone, sa, ad] = await Promise.all([getTimezone(), getServiceAccountInfo(), getAdConfig()]);
+  return { timezone, gcpServiceAccount: sa, ad };
 }
 
 /**

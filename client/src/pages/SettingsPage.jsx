@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Loader2, Clock, KeyRound, Upload, CheckCircle2, XCircle, Trash2, ShieldCheck } from 'lucide-react';
+import { Loader2, Clock, KeyRound, Upload, CheckCircle2, XCircle, Trash2, ShieldCheck, Network, AlertTriangle } from 'lucide-react';
 import { Header } from '../components/layout/Header.jsx';
 import { api } from '../api/client.js';
 import { setAppTimezone, formatDate } from '../lib/utils.js';
@@ -34,6 +34,35 @@ function Card({ icon: Icon, title, subtitle, children }) {
   );
 }
 
+const EMPTY_AD = { enabled: false, url: '', domain: '', tlsVerify: true };
+
+function Toggle({ checked, onChange, label }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      onClick={() => onChange(!checked)}
+      className={`relative w-10 h-6 rounded-full transition-colors shrink-0 ${checked ? 'bg-accent' : 'bg-white/10'}`}
+    >
+      <span className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${checked ? 'translate-x-4' : ''}`} />
+    </button>
+  );
+}
+
+function ResultBox({ result }) {
+  if (!result) return null;
+  return (
+    <div className={`mt-3 flex items-start gap-2 rounded-lg px-3 py-2.5 ${result.ok ? 'bg-green-500/10 border border-green-500/20' : 'bg-red-500/10 border border-red-500/20'}`}>
+      {result.ok
+        ? <CheckCircle2 size={15} className="text-green-400 mt-0.5 shrink-0" />
+        : <XCircle size={15} className="text-red-400 mt-0.5 shrink-0" />}
+      <p className={`text-xs break-words min-w-0 ${result.ok ? 'text-green-400' : 'text-red-400'}`}>{result.message}</p>
+    </div>
+  );
+}
+
 export function SettingsPage() {
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -53,6 +82,15 @@ export function SettingsPage() {
   const [testResult, setTestResult] = useState(null); // {ok, message}
   const fileRef = useRef(null);
 
+  // Active Directory
+  const [ad, setAd] = useState(EMPTY_AD);
+  const [savingAd, setSavingAd] = useState(false);
+  const [adSaved, setAdSaved] = useState(false);
+  const [adError, setAdError] = useState('');
+  const [adTest, setAdTest] = useState({ username: '', password: '' });
+  const [testingAd, setTestingAd] = useState(false);
+  const [adTestResult, setAdTestResult] = useState(null);
+
   const load = async () => {
     setLoading(true);
     setError('');
@@ -60,6 +98,7 @@ export function SettingsPage() {
       const s = await api.getSettings();
       setSettings(s);
       setTz(s.timezone);
+      setAd(s.ad ?? EMPTY_AD);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -144,6 +183,57 @@ export function SettingsPage() {
     }
   };
 
+  const updateAd = (field, value) => {
+    setAd((prev) => ({ ...prev, [field]: value }));
+    setAdError('');
+    setAdTestResult(null);
+  };
+
+  const adDirty = JSON.stringify(ad) !== JSON.stringify(settings?.ad ?? EMPTY_AD);
+
+  const handleSaveAd = async () => {
+    setSavingAd(true);
+    setAdError('');
+    setAdSaved(false);
+    try {
+      const s = await api.updateSettings({ ad });
+      setSettings(s);
+      setAd(s.ad);
+      setAdSaved(true);
+      setTimeout(() => setAdSaved(false), 2500);
+    } catch (err) {
+      setAdError(err.message);
+    } finally {
+      setSavingAd(false);
+    }
+  };
+
+  // Prueba con lo que hay en el formulario (aunque no esté guardado).
+  const handleTestAd = async (e) => {
+    e.preventDefault();
+    setTestingAd(true);
+    setAdTestResult(null);
+    try {
+      const result = await api.testAdConnection({
+        url: ad.url.trim(),
+        domain: ad.domain.trim(),
+        tlsVerify: ad.tlsVerify,
+        username: adTest.username.trim(),
+        password: adTest.password,
+      });
+      setAdTestResult({ ok: true, message: result.message });
+    } catch (err) {
+      setAdTestResult({ ok: false, message: err.message });
+    } finally {
+      setTestingAd(false);
+      setAdTest((prev) => ({ ...prev, password: '' }));
+    }
+  };
+
+  const adInsecure = /^ldap:\/\//i.test(ad.url.trim());
+  const adIsLdaps = /^ldaps:\/\//i.test(ad.url.trim());
+  const inputCls = 'w-full bg-surface border border-surface-border text-sm text-white/80 rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent/50 placeholder:text-white/20';
+
   const sa = settings?.gcpServiceAccount;
 
   return (
@@ -183,6 +273,123 @@ export function SettingsPage() {
                 </button>
               </div>
               <p className="text-xs text-white/30 mt-2">Ejemplo de fecha: {formatDate(new Date().toISOString())}</p>
+            </Card>
+
+            {/* Active Directory */}
+            <Card
+              icon={Network}
+              title="Active Directory"
+              subtitle="Login de usuarios de tipo AD con su usuario y contraseña de red (DOMINIO\usuario)."
+            >
+              <div className="flex items-center justify-between gap-4 mb-4 p-3 rounded-lg bg-surface border border-surface-border">
+                <div className="min-w-0">
+                  <p className="text-sm text-white/80">Habilitar login con AD</p>
+                  <p className="text-xs text-white/40 mt-0.5">
+                    Deshabilitado, los usuarios AD no pueden entrar; los locales no se ven afectados.
+                  </p>
+                </div>
+                <Toggle checked={ad.enabled} onChange={(v) => updateAd('enabled', v)} label="Habilitar login con AD" />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-medium text-white/60 mb-1.5">Servidor (URL)</label>
+                  <input
+                    type="text"
+                    value={ad.url}
+                    onChange={(e) => updateAd('url', e.target.value)}
+                    placeholder="ldap://126.26.3.151"
+                    spellCheck={false}
+                    className={`${inputCls} font-mono`}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-white/60 mb-1.5">Dominio</label>
+                  <input
+                    type="text"
+                    value={ad.domain}
+                    onChange={(e) => updateAd('domain', e.target.value.toUpperCase())}
+                    placeholder="INTERSEGURO"
+                    spellCheck={false}
+                    className={`${inputCls} font-mono`}
+                  />
+                </div>
+              </div>
+
+              {adIsLdaps && (
+                <label className="flex items-center gap-2 mt-3 text-xs text-white/60 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={ad.tlsVerify}
+                    onChange={(e) => updateAd('tlsVerify', e.target.checked)}
+                    className="accent-cyan-500"
+                  />
+                  Verificar el certificado del servidor (desmárcalo solo si el DC usa un certificado de una CA interna no confiable)
+                </label>
+              )}
+
+              {adInsecure && (
+                <div className="mt-3 flex items-start gap-2 rounded-lg px-3 py-2.5 bg-amber-400/10 border border-amber-400/20">
+                  <AlertTriangle size={15} className="text-amber-400 mt-0.5 shrink-0" />
+                  <p className="text-xs text-amber-300/90">
+                    Con ldap:// la contraseña de red viaja sin cifrar entre este servidor y el DC.
+                    Si el controlador de dominio tiene certificado, usa ldaps://…:636.
+                  </p>
+                </div>
+              )}
+
+              {adError && (
+                <div className="mt-3 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2.5">
+                  <p className="text-xs text-red-400">{adError}</p>
+                </div>
+              )}
+
+              <div className="flex justify-end mt-4">
+                <button
+                  onClick={handleSaveAd}
+                  disabled={savingAd || !adDirty}
+                  className="flex items-center gap-2 px-4 py-2 bg-accent text-surface text-sm font-medium rounded-lg hover:bg-accent/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  {savingAd && <Loader2 size={14} className="animate-spin" />}
+                  {adSaved ? 'Guardado ✓' : 'Guardar'}
+                </button>
+              </div>
+
+              {/* Prueba con una cuenta real */}
+              <form onSubmit={handleTestAd} className="mt-5 pt-5 border-t border-surface-border">
+                <p className="text-xs font-medium text-white/60 mb-1">Probar conexión</p>
+                <p className="text-xs text-white/30 mb-3">
+                  Hace un login real con los datos del formulario (aunque no estén guardados). La contraseña no se guarda.
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-2">
+                  <input
+                    type="text"
+                    value={adTest.username}
+                    onChange={(e) => setAdTest((p) => ({ ...p, username: e.target.value }))}
+                    placeholder="usuario de red"
+                    autoComplete="off"
+                    spellCheck={false}
+                    className={`${inputCls} font-mono`}
+                  />
+                  <input
+                    type="password"
+                    value={adTest.password}
+                    onChange={(e) => setAdTest((p) => ({ ...p, password: e.target.value }))}
+                    placeholder="contraseña"
+                    autoComplete="new-password"
+                    className={inputCls}
+                  />
+                  <button
+                    type="submit"
+                    disabled={testingAd || !adTest.username.trim() || !adTest.password || !ad.url.trim() || !ad.domain.trim()}
+                    className="flex items-center justify-center gap-2 px-3.5 py-2 text-sm text-accent border border-accent/30 bg-accent-muted rounded-lg hover:bg-accent/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {testingAd ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} />}
+                    Probar
+                  </button>
+                </div>
+                <ResultBox result={adTestResult} />
+              </form>
             </Card>
 
             {/* Cuenta de servicio GCP */}
@@ -228,14 +435,7 @@ export function SettingsPage() {
 
               <input ref={fileRef} type="file" accept=".json,application/json" onChange={handleFile} className="hidden" />
 
-              {testResult && (
-                <div className={`mt-3 flex items-start gap-2 rounded-lg px-3 py-2.5 ${testResult.ok ? 'bg-green-500/10 border border-green-500/20' : 'bg-red-500/10 border border-red-500/20'}`}>
-                  {testResult.ok
-                    ? <CheckCircle2 size={15} className="text-green-400 mt-0.5 shrink-0" />
-                    : <XCircle size={15} className="text-red-400 mt-0.5 shrink-0" />}
-                  <p className={`text-xs ${testResult.ok ? 'text-green-400' : 'text-red-400'}`}>{testResult.message}</p>
-                </div>
-              )}
+              <ResultBox result={testResult} />
 
               {saError && (
                 <div className="mt-3 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2.5">

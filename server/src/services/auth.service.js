@@ -3,9 +3,12 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { query } from '../config/db.js';
 import { config } from '../config/env.js';
+import { getAdConfig } from './settings.service.js';
+import { adAuthenticate, normalizeAdUsername } from './ad.service.js';
 
 // Columnas seguras para exponer al cliente (nunca password_hash).
-const PUBLIC_COLUMNS = 'id, email, full_name, role, is_active, last_login_at, created_at, updated_at';
+export const PUBLIC_COLUMNS =
+  'id, email, full_name, role, auth_type, ad_username, is_active, last_login_at, created_at, updated_at';
 
 export function toPublicUser(row) {
   if (!row) return null;
@@ -14,6 +17,8 @@ export function toPublicUser(row) {
     email: row.email,
     full_name: row.full_name,
     role: row.role,
+    auth_type: row.auth_type,
+    ad_username: row.ad_username,
     is_active: row.is_active,
     last_login_at: row.last_login_at,
     created_at: row.created_at,
@@ -77,28 +82,53 @@ export function clearSession(res) {
   res.clearCookie(config.auth.csrfCookieName, { ...base, httpOnly: false });
 }
 
+const DUMMY_HASH = '$2a$12$0000000000000000000000000000000000000000000000000000';
+
+function invalidCredentials() {
+  const err = new Error('Credenciales inválidas');
+  err.status = 401;
+  return err;
+}
+
 /**
  * Valida credenciales y devuelve el usuario público, o lanza Error 401.
- * Se ejecuta bcrypt.compare aunque el usuario no exista para mitigar
- * ataques de enumeración por timing.
+ *
+ * `identifier` puede ser el correo (usuarios locales o AD con correo) o el
+ * usuario de red (AD), con o sin prefijo de dominio: "INTERSEGURO\jperez".
+ * Según el auth_type del usuario, la contraseña se valida con bcrypt o con
+ * un bind contra AD. Solo entran usuarios dados de alta en la app.
  */
-export async function login(email, password) {
-  const normalized = email.trim().toLowerCase();
+export async function login(identifier, password) {
+  const raw = identifier.trim().toLowerCase();
+  const adName = normalizeAdUsername(raw);
   const result = await query(
-    `SELECT id, email, password_hash, full_name, role, is_active, last_login_at, created_at, updated_at
-     FROM users WHERE lower(email) = $1`,
-    [normalized]
+    `SELECT id, email, password_hash, full_name, role, auth_type, ad_username, is_active,
+            last_login_at, created_at, updated_at
+     FROM users
+     WHERE lower(email) = $1 OR lower(ad_username) = $2
+     ORDER BY (lower(email) = $1) DESC NULLS LAST
+     LIMIT 1`,
+    [raw, adName]
   );
   const user = result.rows[0];
 
-  // Hash dummy para igualar tiempos cuando el usuario no existe.
-  const hash = user?.password_hash ?? '$2a$12$0000000000000000000000000000000000000000000000000000';
-  const ok = await bcrypt.compare(password, hash);
-
-  if (!user || !ok || !user.is_active) {
-    const err = new Error('Credenciales inválidas');
-    err.status = 401;
-    throw err;
+  if (user?.auth_type === 'ad') {
+    // Un usuario inactivo no llega al directorio: no suma intentos fallidos
+    // a su cuenta de dominio.
+    if (!user.is_active) throw invalidCredentials();
+    const ad = await getAdConfig();
+    if (!ad.enabled || !ad.url || !ad.domain) {
+      console.warn(`[AUTH] Login AD rechazado para ${user.ad_username}: AD deshabilitado o sin configurar`);
+      throw invalidCredentials();
+    }
+    // Errores de conexión (503) se propagan: así el usuario no reintenta
+    // pensando que su contraseña es incorrecta (y no bloquea su cuenta AD).
+    await adAuthenticate(ad, user.ad_username, password);
+  } else {
+    // Se ejecuta bcrypt.compare aunque el usuario no exista para mitigar
+    // ataques de enumeración por timing.
+    const ok = await bcrypt.compare(password, user?.password_hash ?? DUMMY_HASH);
+    if (!user || !ok || !user.is_active) throw invalidCredentials();
   }
 
   await query('UPDATE users SET last_login_at = now() WHERE id = $1', [user.id]);

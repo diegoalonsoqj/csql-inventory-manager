@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Pencil, KeyRound, UserX, UserCheck, Search, ChevronLeft, ChevronRight, ShieldCheck, Eye, Wrench } from 'lucide-react';
+import { Plus, Pencil, KeyRound, UserX, UserCheck, Search, ChevronLeft, ChevronRight, ShieldCheck, Eye, Wrench, Network } from 'lucide-react';
 import { Header } from '../components/layout/Header.jsx';
 import { UserModal } from '../components/users/UserModal.jsx';
 import { ResetPasswordModal } from '../components/users/ResetPasswordModal.jsx';
@@ -21,6 +21,23 @@ function RoleBadge({ role }) {
     <span className={cn('inline-flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-md', meta.cls)}>
       <Icon size={12} />
       {meta.label}
+    </span>
+  );
+}
+
+function AuthTypeBadge({ user }) {
+  if (user.auth_type === 'ad') {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-xs text-white/60">
+        <Network size={12} className="text-accent" />
+        AD · <span className="font-mono">{user.ad_username}</span>
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1.5 text-xs text-white/40">
+      <KeyRound size={12} />
+      Local
     </span>
   );
 }
@@ -81,7 +98,7 @@ export function UsersPage() {
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/25" />
             <input
               type="text"
-              placeholder="Buscar por nombre o correo…"
+              placeholder="Buscar por nombre, correo o usuario…"
               value={filters.search}
               onChange={(e) => updateFilter('search', e.target.value)}
               className="w-full bg-surface-card border border-surface-border text-sm text-white/80 rounded-lg pl-9 pr-3 py-2 focus:outline-none focus:border-accent/50 placeholder:text-white/20"
@@ -96,6 +113,15 @@ export function UsersPage() {
             <option value="admin">Admin</option>
             <option value="operator">Operator</option>
             <option value="viewer">Viewer</option>
+          </select>
+          <select
+            value={filters.auth_type}
+            onChange={(e) => updateFilter('auth_type', e.target.value)}
+            className="bg-surface-card border border-surface-border text-sm text-white/70 rounded-lg px-3 py-2 focus:outline-none focus:border-accent/50"
+          >
+            <option value="">Todos los tipos</option>
+            <option value="ad">Active Directory</option>
+            <option value="local">Local</option>
           </select>
           <select
             value={filters.is_active}
@@ -120,7 +146,7 @@ export function UsersPage() {
               <table className="w-full text-left">
                 <thead className="sticky top-0 z-10">
                   <tr className="border-b border-surface-border">
-                    {['Nombre', 'Correo', 'Rol', 'Estado', 'Último ingreso', ''].map((h, i) => (
+                    {['Nombre', 'Tipo', 'Correo', 'Rol', 'Estado', 'Último ingreso', ''].map((h, i) => (
                       <th key={i} className="bg-surface-card px-4 py-3 text-xs font-medium text-white/40 uppercase tracking-wider whitespace-nowrap">
                         {h}
                       </th>
@@ -129,9 +155,9 @@ export function UsersPage() {
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr><td colSpan={6} className="px-4 py-12 text-center text-sm text-white/30">Cargando…</td></tr>
+                    <tr><td colSpan={7} className="px-4 py-12 text-center text-sm text-white/30">Cargando…</td></tr>
                   ) : users.length === 0 ? (
-                    <tr><td colSpan={6} className="px-4 py-12 text-center text-sm text-white/30">No se encontraron usuarios</td></tr>
+                    <tr><td colSpan={7} className="px-4 py-12 text-center text-sm text-white/30">No se encontraron usuarios</td></tr>
                   ) : (
                     users.map((u, i) => (
                       <tr
@@ -146,7 +172,8 @@ export function UsersPage() {
                           <span className="text-sm font-medium text-white">{u.full_name}</span>
                           {u.id === currentUser.id && <span className="ml-2 text-xs text-white/30">(tú)</span>}
                         </td>
-                        <td className="px-4 py-3 whitespace-nowrap font-mono text-xs text-white/60">{u.email}</td>
+                        <td className="px-4 py-3 whitespace-nowrap"><AuthTypeBadge user={u} /></td>
+                        <td className="px-4 py-3 whitespace-nowrap font-mono text-xs text-white/60">{u.email ?? <span className="text-white/20">—</span>}</td>
                         <td className="px-4 py-3 whitespace-nowrap"><RoleBadge role={u.role} /></td>
                         <td className="px-4 py-3 whitespace-nowrap"><ActiveBadge isActive={u.is_active} /></td>
                         <td className="px-4 py-3 whitespace-nowrap text-xs text-white/40">{formatDate(u.last_login_at)}</td>
@@ -159,13 +186,16 @@ export function UsersPage() {
                             >
                               <Pencil size={14} />
                             </button>
-                            <button
-                              onClick={() => setResetting(u)}
-                              title="Restablecer contraseña"
-                              className="p-1.5 rounded-lg text-white/30 hover:text-accent hover:bg-accent/10 transition-colors"
-                            >
-                              <KeyRound size={14} />
-                            </button>
+                            {/* Los usuarios AD cambian su contraseña en el dominio. */}
+                            {u.auth_type !== 'ad' && (
+                              <button
+                                onClick={() => setResetting(u)}
+                                title="Restablecer contraseña"
+                                className="p-1.5 rounded-lg text-white/30 hover:text-accent hover:bg-accent/10 transition-colors"
+                              >
+                                <KeyRound size={14} />
+                              </button>
+                            )}
                             {u.id !== currentUser.id && (
                               <button
                                 onClick={() => handleToggleActive(u)}

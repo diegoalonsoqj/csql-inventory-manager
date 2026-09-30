@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { Database, Loader2, Lock, Mail } from 'lucide-react';
+import { Database, Loader2, Lock, User } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
 
 export function LoginPage() {
   const { login } = useAuth();
-  const [form, setForm] = useState({ email: '', password: '' });
+  const [form, setForm] = useState({ username: '', password: '' });
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -13,7 +13,7 @@ export function LoginPage() {
     setError('');
     setSubmitting(true);
     try {
-      await login(form.email.trim(), form.password);
+      await login(form.username.trim(), form.password);
       // El cambio de estado en AuthContext hace que App renderice la app.
     } catch (err) {
       setError(err.message);
@@ -36,19 +36,21 @@ export function LoginPage() {
 
         <div className="bg-surface-card border border-surface-border rounded-xl shadow-2xl px-6 py-7">
           <h2 className="text-base font-semibold text-white mb-1">Iniciar sesión</h2>
-          <p className="text-xs text-white/40 mb-5">Ingresa tus credenciales para continuar</p>
+          <p className="text-xs text-white/40 mb-5">Usa tu usuario de red (AD) o tu correo si tienes cuenta local</p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs font-medium text-white/60 mb-1.5">Correo</label>
+              <label className="block text-xs font-medium text-white/60 mb-1.5">Usuario o correo</label>
               <div className="relative">
-                <Mail size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/25" />
+                <User size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/25" />
                 <input
-                  type="email"
+                  type="text"
                   autoComplete="username"
-                  placeholder="usuario@example.com"
-                  value={form.email}
-                  onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  placeholder="usuario de red o correo"
+                  value={form.username}
+                  onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))}
                   className="w-full bg-surface border border-surface-border text-sm text-white/80 rounded-lg pl-9 pr-3 py-2.5 focus:outline-none focus:border-accent/50 placeholder:text-white/20"
                   required
                 />
