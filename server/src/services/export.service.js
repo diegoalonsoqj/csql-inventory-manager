@@ -1,18 +1,6 @@
 import ExcelJS from 'exceljs';
 import { query } from '../config/db.js';
-
-function buildWhereClause(filters) {
-  const conditions = [];
-  const params = [];
-  let idx = 1;
-  if (filters.engine) { conditions.push(`engine = $${idx++}`); params.push(filters.engine); }
-  if (filters.project) { conditions.push(`project_id = $${idx++}`); params.push(filters.project); }
-  if (filters.region) { conditions.push(`region = $${idx++}`); params.push(filters.region); }
-  if (filters.state) { conditions.push(`state = $${idx++}`); params.push(filters.state); }
-  if (filters.environment) { conditions.push(`environment = $${idx++}`); params.push(filters.environment); }
-  if (filters.search) { conditions.push(`instance_name ILIKE $${idx++}`); params.push(`%${filters.search}%`); }
-  return { where: conditions.length ? `WHERE ${conditions.join(' AND ')}` : '', params };
-}
+import { buildWhereClause } from './instance.service.js';
 
 export async function generateExcel(filters) {
   const { where, params } = buildWhereClause(filters);
@@ -21,7 +9,7 @@ export async function generateExcel(filters) {
             ip_primary::text, ip_private::text, ip_outgoing::text, ip_label,
             environment, application, info, service_account,
             ha_enabled, backup_enabled, storage_size_gb, data_disk_type, synced_at
-     FROM csql_instances
+     FROM csql_instances i
      ${where}
      ORDER BY project_id, instance_name`,
     params

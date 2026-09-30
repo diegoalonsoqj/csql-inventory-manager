@@ -1,6 +1,7 @@
 import { query } from '../config/db.js';
 
-function buildWhereClause(filters) {
+// Compartido con el export a Excel para que descargue lo mismo que muestra la tabla.
+export function buildWhereClause(filters) {
   const conditions = [];
   const params = [];
   let idx = 1;
@@ -32,6 +33,10 @@ function buildWhereClause(filters) {
       OR i.ip_outgoing::text ILIKE $${idx}
       OR i.ip_private::text ILIKE $${idx}
       OR i.ip_label ILIKE $${idx}
+      OR i.application ILIKE $${idx}
+      -- El label aparece con ambas grafías en GCP.
+      OR i.labels_raw->>'hostname_vmware' ILIKE $${idx}
+      OR i.labels_raw->>'hostname-vmware' ILIKE $${idx}
       OR EXISTS (
         SELECT 1 FROM csql_databases db
         WHERE db.instance_id = i.id AND db.database_name ILIKE $${idx}
