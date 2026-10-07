@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useLayoutEffect, useCallback, useMemo } from 'react';
 import { useAuth } from './AuthContext.jsx';
+import { api } from '../api/client.js';
 
 // Paletas disponibles. Los colores reales viven en src/index.css; `swatch` solo
 // se usa para la vista previa en Configuración.
@@ -12,10 +13,12 @@ export const THEMES = [
 export const MODES = ['dark', 'light', 'system'];
 
 const DEFAULT_PREF = { theme: 'cyan', mode: 'dark' };
-// Último tema aplicado en este navegador: lo lee public/theme-init.js antes del
-// primer pintado (también en el login, cuando aún no hay usuario).
+// La preferencia de cada usuario se guarda en la BD (users.ui_theme/ui_mode).
+// LAST_KEY es solo una copia local del último tema aplicado, para que
+// public/theme-init.js lo pinte antes de cargar la app (también en el login).
 const LAST_KEY = 'csqlim:appearance';
-const userKey = (user) => `${LAST_KEY}:${user.id}`;
+// Clave por usuario de la versión anterior (solo localStorage); se migra a la BD.
+const legacyUserKey = (user) => `${LAST_KEY}:${user.id}`;
 
 function readPref(key) {
   try {
@@ -27,12 +30,17 @@ function readPref(key) {
   return null;
 }
 
-function writePref(keys, pref) {
+function writeLastPref(pref) {
   try {
-    for (const k of keys) localStorage.setItem(k, JSON.stringify(pref));
+    localStorage.setItem(LAST_KEY, JSON.stringify(pref));
   } catch {
-    // sin storage: la preferencia dura solo esta sesión
+    // sin storage: solo se pierde el pintado previo a cargar la app
   }
+}
+
+function prefFromUser(user) {
+  if (!user.ui_theme && !user.ui_mode) return null;
+  return { theme: user.ui_theme ?? DEFAULT_PREF.theme, mode: user.ui_mode ?? DEFAULT_PREF.mode };
 }
 
 const systemDark = () => window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -44,14 +52,20 @@ export function ThemeProvider({ children }) {
   const [pref, setPref] = useState(() => readPref(LAST_KEY) ?? DEFAULT_PREF);
   const [osDark, setOsDark] = useState(systemDark);
 
-  // Al iniciar sesión, carga la preferencia de ese usuario (si tiene una).
+  // Al iniciar sesión, aplica la preferencia guardada del usuario. Si aún no
+  // tiene, migra la que guardaba la versión anterior en este navegador o, si
+  // tampoco hay, usa la predeterminada (no hereda la del último usuario).
   useEffect(() => {
     if (!user) return;
-    const saved = readPref(userKey(user));
-    if (saved) {
-      setPref(saved);
-      writePref([LAST_KEY], saved);
+    let next = prefFromUser(user);
+    if (!next) {
+      const legacy = readPref(legacyUserKey(user));
+      if (legacy) api.updateAppearance(legacy).catch(() => {});
+      next = legacy ?? DEFAULT_PREF;
     }
+    try { localStorage.removeItem(legacyUserKey(user)); } catch { /* sin storage */ }
+    setPref(next);
+    writeLastPref(next);
   }, [user]);
 
   useEffect(() => {
@@ -73,13 +87,16 @@ export function ThemeProvider({ children }) {
     setChartColors(readChartColors());
   }, [pref.theme, isDark]);
 
+  // Se aplica al instante; si falla el guardado en la BD solo se pierde para
+  // la próxima sesión, así que no se revierte.
   const update = useCallback((patch) => {
-    setPref((prev) => {
-      const next = { ...prev, ...patch };
-      writePref(user ? [LAST_KEY, userKey(user)] : [LAST_KEY], next);
-      return next;
-    });
-  }, [user]);
+    const next = { ...pref, ...patch };
+    setPref(next);
+    writeLastPref(next);
+    if (user) {
+      api.updateAppearance(patch).catch((err) => console.warn('[theme] No se pudo guardar la apariencia:', err.message));
+    }
+  }, [pref, user]);
 
   const value = useMemo(() => ({
     theme: pref.theme,

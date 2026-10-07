@@ -8,7 +8,7 @@ import { adAuthenticate, normalizeAdUsername } from './ad.service.js';
 
 // Columnas seguras para exponer al cliente (nunca password_hash).
 export const PUBLIC_COLUMNS =
-  'id, email, full_name, role, auth_type, ad_username, is_active, last_login_at, created_at, updated_at';
+  'id, email, full_name, role, auth_type, ad_username, is_active, ui_theme, ui_mode, last_login_at, created_at, updated_at';
 
 export function toPublicUser(row) {
   if (!row) return null;
@@ -20,6 +20,8 @@ export function toPublicUser(row) {
     auth_type: row.auth_type,
     ad_username: row.ad_username,
     is_active: row.is_active,
+    ui_theme: row.ui_theme,
+    ui_mode: row.ui_mode,
     last_login_at: row.last_login_at,
     created_at: row.created_at,
     updated_at: row.updated_at,
@@ -103,7 +105,7 @@ export async function login(identifier, password) {
   const adName = normalizeAdUsername(raw);
   const result = await query(
     `SELECT id, email, password_hash, full_name, role, auth_type, ad_username, is_active,
-            last_login_at, created_at, updated_at
+            ui_theme, ui_mode, last_login_at, created_at, updated_at
      FROM users
      WHERE lower(email) = $1 OR lower(ad_username) = $2
      ORDER BY (lower(email) = $1) DESC NULLS LAST

@@ -106,6 +106,14 @@ export const changePasswordSchema = z.object({
   newPassword: passwordSchema,
 });
 
+// Apariencia propia: se puede enviar solo uno de los dos campos.
+export const appearanceSchema = z
+  .object({
+    theme: z.enum(['cyan', 'indigo', 'emerald']).optional(),
+    mode: z.enum(['dark', 'light', 'system']).optional(),
+  })
+  .refine((v) => v.theme || v.mode, 'Indica theme o mode');
+
 export const usersQuerySchema = z.object({
   search: z.string().max(200).optional(),
   role: z.enum(['admin', 'operator', 'viewer']).optional(),

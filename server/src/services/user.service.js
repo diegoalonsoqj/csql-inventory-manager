@@ -196,6 +196,17 @@ export async function changeOwnPassword(id, currentPassword, newPassword) {
   await resetPassword(id, newPassword);
 }
 
+/** Guarda la preferencia de apariencia del propio usuario (tema y/o modo). */
+export async function updateOwnAppearance(id, { theme, mode }) {
+  const result = await query(
+    `UPDATE users SET ui_theme = COALESCE($1, ui_theme), ui_mode = COALESCE($2, ui_mode)
+     WHERE id = $3 RETURNING ${PUBLIC_COLUMNS}`,
+    [theme ?? null, mode ?? null, id]
+  );
+  if (!result.rows.length) throw httpError('Usuario no encontrado', 404);
+  return result.rows[0];
+}
+
 /**
  * Elimina un usuario definitivamente. Para quitar el acceso sin perder el
  * registro está la desactivación (PATCH is_active=false). Las referencias en

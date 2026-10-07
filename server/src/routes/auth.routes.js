@@ -1,9 +1,9 @@
 import { Router } from 'express';
 import { login, issueSession, clearSession } from '../services/auth.service.js';
-import { changeOwnPassword } from '../services/user.service.js';
+import { changeOwnPassword, updateOwnAppearance } from '../services/user.service.js';
 import { requireAuth } from '../middleware/auth.js';
 import { loginRateLimiter, passwordChangeRateLimiter } from '../middleware/rate-limiter.js';
-import { validateBody, loginSchema, changePasswordSchema } from '../middleware/validate.js';
+import { validateBody, loginSchema, changePasswordSchema, appearanceSchema } from '../middleware/validate.js';
 
 const router = Router();
 
@@ -31,6 +31,12 @@ router.post('/change-password', requireAuth, passwordChangeRateLimiter, validate
   const { currentPassword, newPassword } = req.validatedBody;
   await changeOwnPassword(req.user.id, currentPassword, newPassword);
   res.json({ ok: true });
+});
+
+// Preferencia de apariencia propia (tema y modo), guardada en users.
+router.patch('/appearance', requireAuth, validateBody(appearanceSchema), async (req, res) => {
+  const user = await updateOwnAppearance(req.user.id, req.validatedBody);
+  res.json({ user });
 });
 
 export default router;

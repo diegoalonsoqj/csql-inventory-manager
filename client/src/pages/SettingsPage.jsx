@@ -645,7 +645,7 @@ function AppearanceCard() {
   const { theme, mode, isDark, setTheme, setMode } = useTheme();
 
   return (
-    <Card icon={Palette} title="Apariencia" subtitle="Paleta de colores y modo. Se guarda para tu usuario en este navegador.">
+    <Card icon={Palette} title="Apariencia" subtitle="Paleta de colores y modo. Se guarda en tu usuario y te sigue en cualquier equipo.">
       <label className="block text-xs font-medium text-fg/60 mb-1.5">Paleta</label>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
         {THEMES.map((t) => {
