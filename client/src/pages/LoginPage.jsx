@@ -30,19 +30,19 @@ export function LoginPage() {
           <div className="w-12 h-12 rounded-xl bg-accent-muted flex items-center justify-center mb-3">
             <Database size={24} className="text-accent" />
           </div>
-          <h1 className="text-lg font-semibold text-white">CSQL Inventory</h1>
-          <p className="text-sm text-white/40">Google Cloud SQL</p>
+          <h1 className="text-lg font-semibold text-fg">CSQL Inventory</h1>
+          <p className="text-sm text-fg/40">Google Cloud SQL</p>
         </div>
 
         <div className="bg-surface-card border border-surface-border rounded-xl shadow-2xl px-6 py-7">
-          <h2 className="text-base font-semibold text-white mb-1">Iniciar sesión</h2>
-          <p className="text-xs text-white/40 mb-5">Usa tu usuario de red (AD) o tu correo si tienes cuenta local</p>
+          <h2 className="text-base font-semibold text-fg mb-1">Iniciar sesión</h2>
+          <p className="text-xs text-fg/40 mb-5">Usa tu usuario de red (AD) o tu correo si tienes cuenta local</p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs font-medium text-white/60 mb-1.5">Usuario o correo</label>
+              <label className="block text-xs font-medium text-fg/60 mb-1.5">Usuario o correo</label>
               <div className="relative">
-                <User size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/25" />
+                <User size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg/25" />
                 <input
                   type="text"
                   autoComplete="username"
@@ -51,38 +51,38 @@ export function LoginPage() {
                   placeholder="usuario de red o correo"
                   value={form.username}
                   onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))}
-                  className="w-full bg-surface border border-surface-border text-sm text-white/80 rounded-lg pl-9 pr-3 py-2.5 focus:outline-none focus:border-accent/50 placeholder:text-white/20"
+                  className="w-full bg-surface border border-surface-border text-sm text-fg/80 rounded-lg pl-9 pr-3 py-2.5 focus:outline-none focus:border-accent/50 placeholder:text-fg/20"
                   required
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-white/60 mb-1.5">Contraseña</label>
+              <label className="block text-xs font-medium text-fg/60 mb-1.5">Contraseña</label>
               <div className="relative">
-                <Lock size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/25" />
+                <Lock size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg/25" />
                 <input
                   type="password"
                   autoComplete="current-password"
                   placeholder="••••••••"
                   value={form.password}
                   onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-                  className="w-full bg-surface border border-surface-border text-sm text-white/80 rounded-lg pl-9 pr-3 py-2.5 focus:outline-none focus:border-accent/50 placeholder:text-white/20"
+                  className="w-full bg-surface border border-surface-border text-sm text-fg/80 rounded-lg pl-9 pr-3 py-2.5 focus:outline-none focus:border-accent/50 placeholder:text-fg/20"
                   required
                 />
               </div>
             </div>
 
             {error && (
-              <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2.5">
-                <p className="text-xs text-red-400">{error}</p>
+              <div className="bg-danger/10 border border-danger/20 rounded-lg px-3 py-2.5">
+                <p className="text-xs text-danger">{error}</p>
               </div>
             )}
 
             <button
               type="submit"
               disabled={submitting}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-accent text-surface text-sm font-medium rounded-lg hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-accent text-on-accent text-sm font-medium rounded-lg hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {submitting && <Loader2 size={15} className="animate-spin" />}
               Ingresar

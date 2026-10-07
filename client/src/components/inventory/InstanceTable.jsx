@@ -37,12 +37,12 @@ const COLUMNS = [
   col.accessor('instance_name', {
     header: 'Instancia',
     cell: (info) => (
-      <span className="font-mono text-sm text-white">{info.getValue()}</span>
+      <span className="font-mono text-sm text-fg">{info.getValue()}</span>
     ),
   }),
   col.accessor('project_id', {
     header: 'Proyecto',
-    cell: (info) => <span className="font-mono text-xs text-white/60">{info.getValue()}</span>,
+    cell: (info) => <span className="font-mono text-xs text-fg/60">{info.getValue()}</span>,
   }),
   col.accessor('engine', {
     header: 'Engine',
@@ -51,7 +51,7 @@ const COLUMNS = [
   col.accessor('environment', {
     header: 'Ambiente',
     cell: (info) => (
-      <span className="text-xs text-white/50">{info.getValue() ?? '—'}</span>
+      <span className="text-xs text-fg/50">{info.getValue() ?? '—'}</span>
     ),
   }),
   col.accessor('ip_primary', {
@@ -59,7 +59,7 @@ const COLUMNS = [
     cell: (info) => {
       const ip = info.getValue()
         ?? (info.row.original.ip_label ? info.row.original.ip_label.replace(/-/g, '.') : null);
-      return <span className="font-mono text-xs text-white/40">{ip ?? '—'}</span>;
+      return <span className="font-mono text-xs text-fg/40">{ip ?? '—'}</span>;
     },
   }),
   col.accessor('state', {
@@ -69,7 +69,7 @@ const COLUMNS = [
 ];
 
 function SortIcon({ column, sortBy, sortDir }) {
-  if (column !== sortBy) return <ChevronsUpDown size={12} className="text-white/20" />;
+  if (column !== sortBy) return <ChevronsUpDown size={12} className="text-fg/20" />;
   return sortDir === 'asc'
     ? <ChevronUp size={12} className="text-accent" />
     : <ChevronDown size={12} className="text-accent" />;
@@ -111,8 +111,8 @@ export function InstanceTable({ data = [], pagination, loading, filters, onFilte
                       key={header.id}
                       onClick={() => handleHeaderClick(header.column.id)}
                       className={cn(
-                        'bg-surface-card px-4 py-3 text-xs font-medium text-white/40 uppercase tracking-wider whitespace-nowrap',
-                        SORTABLE.includes(header.column.id) && 'cursor-pointer hover:text-white/70 select-none'
+                        'bg-surface-card px-4 py-3 text-xs font-medium text-fg/40 uppercase tracking-wider whitespace-nowrap',
+                        SORTABLE.includes(header.column.id) && 'cursor-pointer hover:text-fg/70 select-none'
                       )}
                     >
                       <div className="flex items-center gap-1.5">
@@ -129,13 +129,13 @@ export function InstanceTable({ data = [], pagination, loading, filters, onFilte
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={COLUMNS.length} className="px-4 py-12 text-center text-sm text-white/30">
+                  <td colSpan={COLUMNS.length} className="px-4 py-12 text-center text-sm text-fg/30">
                     Cargando…
                   </td>
                 </tr>
               ) : table.getRowModel().rows.length === 0 ? (
                 <tr>
-                  <td colSpan={COLUMNS.length} className="px-4 py-12 text-center text-sm text-white/30">
+                  <td colSpan={COLUMNS.length} className="px-4 py-12 text-center text-sm text-fg/30">
                     No se encontraron instancias
                   </td>
                 </tr>
@@ -164,21 +164,21 @@ export function InstanceTable({ data = [], pagination, loading, filters, onFilte
 
         {pagination && (
           <div className="flex items-center justify-between px-4 py-3 border-t border-surface-border shrink-0">
-            <p className="text-xs text-white/30">
+            <p className="text-xs text-fg/30">
               {pagination.total} instancias — página {pagination.page} de {pagination.totalPages}
             </p>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => onFilter('page', pagination.page - 1)}
                 disabled={pagination.page <= 1}
-                className="p-1.5 rounded-lg text-white/40 hover:text-white hover:bg-surface-hover disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                className="p-1.5 rounded-lg text-fg/40 hover:text-fg hover:bg-surface-hover disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
               >
                 <ChevronLeft size={16} />
               </button>
               <button
                 onClick={() => onFilter('page', pagination.page + 1)}
                 disabled={pagination.page >= pagination.totalPages}
-                className="p-1.5 rounded-lg text-white/40 hover:text-white hover:bg-surface-hover disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                className="p-1.5 rounded-lg text-fg/40 hover:text-fg hover:bg-surface-hover disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
               >
                 <ChevronRight size={16} />
               </button>

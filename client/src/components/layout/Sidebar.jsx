@@ -17,7 +17,7 @@ function NavItem({ to, icon: Icon, label, collapsed }) {
           collapsed ? 'justify-center' : '',
           isActive
             ? 'bg-accent-muted text-accent border border-accent/20'
-            : 'text-white/60 hover:text-white hover:bg-surface-hover'
+            : 'text-fg/60 hover:text-fg hover:bg-surface-hover'
         )
       }
     >
@@ -54,14 +54,14 @@ export function Sidebar({ collapsed, onToggle }) {
   const failedCount = Array.isArray(lastSync?.failed_projects) ? lastSync.failed_projects.length : 0;
 
   const syncStatusColor = syncing
-    ? 'text-yellow-400'
+    ? 'text-warning'
     : lastSync?.status === 'success'
-    ? 'text-green-400'
+    ? 'text-success'
     : lastSync?.status === 'partial'
-    ? 'text-yellow-400'
+    ? 'text-warning'
     : lastSync?.status === 'failed'
-    ? 'text-red-400'
-    : 'text-white/40';
+    ? 'text-danger'
+    : 'text-fg/40';
 
   const STATUS_LABELS = {
     running: 'En progreso',
@@ -87,8 +87,8 @@ export function Sidebar({ collapsed, onToggle }) {
           </div>
           {!collapsed && (
             <div className="ml-2.5 overflow-hidden">
-              <p className="text-sm font-semibold text-white whitespace-nowrap">CSQL Inventory</p>
-              <p className="text-xs text-white/40">Google Cloud SQL</p>
+              <p className="text-sm font-semibold text-fg whitespace-nowrap">CSQL Inventory</p>
+              <p className="text-xs text-fg/40">Google Cloud SQL</p>
             </div>
           )}
         </div>
@@ -99,7 +99,7 @@ export function Sidebar({ collapsed, onToggle }) {
           <NavItem to="/inventory" icon={Database} label="Inventario" collapsed={collapsed} />
           <NavItem to="/projects" icon={FolderOpen} label="Proyectos" collapsed={collapsed} />
           {isAdmin && <NavItem to="/users" icon={Users} label="Usuarios" collapsed={collapsed} />}
-          {isAdmin && <NavItem to="/settings" icon={Settings} label="Configuración" collapsed={collapsed} />}
+          <NavItem to="/settings" icon={Settings} label="Configuración" collapsed={collapsed} />
         </nav>
 
         {/* Sync + toggle */}
@@ -113,8 +113,8 @@ export function Sidebar({ collapsed, onToggle }) {
                 'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150',
                 collapsed ? 'justify-center' : '',
                 syncing
-                  ? 'text-yellow-400 bg-yellow-400/10 cursor-not-allowed'
-                  : 'text-white/60 hover:text-white hover:bg-surface-hover'
+                  ? 'text-warning bg-warning/10 cursor-not-allowed'
+                  : 'text-fg/60 hover:text-fg hover:bg-surface-hover'
               )}
             >
               <RefreshCw size={18} className={cn('shrink-0', syncing ? 'animate-spin' : '')} />
@@ -128,17 +128,17 @@ export function Sidebar({ collapsed, onToggle }) {
               title="Ver detalle de la última sincronización"
               className="w-full text-left px-3 py-2 rounded-lg bg-surface hover:bg-surface-hover transition-colors"
             >
-              <p className="text-xs text-white/30 mb-0.5">Último sync</p>
+              <p className="text-xs text-fg/30 mb-0.5">Último sync</p>
               <p className={cn('text-xs font-medium flex items-center gap-1.5', syncStatusColor)}>
                 {failedCount > 0 && <AlertTriangle size={12} className="shrink-0" />}
                 {STATUS_LABELS[lastSync.status] ?? lastSync.status}
                 {failedCount > 0 && (
-                  <span className="text-white/40 font-normal">
+                  <span className="text-fg/40 font-normal">
                     · {failedCount} proyecto{failedCount === 1 ? '' : 's'}
                   </span>
                 )}
               </p>
-              <p className="text-xs text-white/30 mt-0.5">
+              <p className="text-xs text-fg/30 mt-0.5">
               {formatDate(lastSync.started_at)}
               {lastSync.triggered_by === 'auto' && ' · automático'}
             </p>
@@ -156,13 +156,13 @@ export function Sidebar({ collapsed, onToggle }) {
             {!collapsed && (
               <>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-white/80 truncate">{user?.full_name}</p>
-                  <p className="text-[11px] text-white/30 truncate">{roleLabel}</p>
+                  <p className="text-xs font-medium text-fg/80 truncate">{user?.full_name}</p>
+                  <p className="text-[11px] text-fg/30 truncate">{roleLabel}</p>
                 </div>
                 <button
                   onClick={logout}
                   title="Cerrar sesión"
-                  className="p-1.5 rounded-lg text-white/40 hover:text-red-400 hover:bg-red-400/10 transition-colors shrink-0"
+                  className="p-1.5 rounded-lg text-fg/40 hover:text-danger hover:bg-danger/10 transition-colors shrink-0"
                 >
                   <LogOut size={15} />
                 </button>
@@ -173,7 +173,7 @@ export function Sidebar({ collapsed, onToggle }) {
             <button
               onClick={logout}
               title="Cerrar sesión"
-              className="w-full flex justify-center p-1.5 rounded-lg text-white/40 hover:text-red-400 hover:bg-red-400/10 transition-colors"
+              className="w-full flex justify-center p-1.5 rounded-lg text-fg/40 hover:text-danger hover:bg-danger/10 transition-colors"
             >
               <LogOut size={15} />
             </button>
@@ -190,7 +190,7 @@ export function Sidebar({ collapsed, onToggle }) {
         onClick={onToggle}
         title={collapsed ? 'Expandir sidebar' : 'Contraer sidebar'}
         aria-label={collapsed ? 'Expandir sidebar' : 'Contraer sidebar'}
-        className="absolute top-6 -right-3 w-6 h-6 rounded-full bg-surface-card border border-surface-border flex items-center justify-center text-white/40 hover:text-accent hover:border-accent/40 shadow-md transition-colors duration-150"
+        className="absolute top-6 -right-3 w-6 h-6 rounded-full bg-surface-card border border-surface-border flex items-center justify-center text-fg/40 hover:text-accent hover:border-accent/40 shadow-md transition-colors duration-150"
       >
         {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
       </button>

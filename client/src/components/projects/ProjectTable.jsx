@@ -14,11 +14,11 @@ function ActiveBadge({ isActive }) {
     <span
       className={cn(
         'flex items-center gap-1.5 text-xs font-medium',
-        isActive ? 'text-green-400' : 'text-white/30'
+        isActive ? 'text-success' : 'text-fg/30'
       )}
     >
       <span
-        className={cn('w-1.5 h-1.5 rounded-full inline-block', isActive ? 'bg-green-400' : 'bg-white/20')}
+        className={cn('w-1.5 h-1.5 rounded-full inline-block', isActive ? 'bg-success' : 'bg-fg/20')}
       />
       {isActive ? 'Activo' : 'Inactivo'}
     </span>
@@ -28,7 +28,7 @@ function ActiveBadge({ isActive }) {
 const SORTABLE = ['project_name', 'project_id', 'created_at'];
 
 function SortIcon({ column, sortBy, sortDir }) {
-  if (column !== sortBy) return <ChevronsUpDown size={12} className="text-white/20" />;
+  if (column !== sortBy) return <ChevronsUpDown size={12} className="text-fg/20" />;
   return sortDir === 'asc'
     ? <ChevronUp size={12} className="text-accent" />
     : <ChevronDown size={12} className="text-accent" />;
@@ -38,11 +38,11 @@ export function ProjectTable({ data = [], pagination, loading, filters, onFilter
   const COLUMNS = [
     col.accessor('project_name', {
       header: 'Nombre',
-      cell: (info) => <span className="text-sm font-medium text-white">{info.getValue()}</span>,
+      cell: (info) => <span className="text-sm font-medium text-fg">{info.getValue()}</span>,
     }),
     col.accessor('project_id', {
       header: 'Project ID',
-      cell: (info) => <span className="font-mono text-xs text-white/60">{info.getValue()}</span>,
+      cell: (info) => <span className="font-mono text-xs text-fg/60">{info.getValue()}</span>,
     }),
     col.accessor('is_active', {
       header: 'Estado',
@@ -50,7 +50,7 @@ export function ProjectTable({ data = [], pagination, loading, filters, onFilter
     }),
     col.accessor('created_at', {
       header: 'Creado',
-      cell: (info) => <span className="text-xs text-white/40">{formatDate(info.getValue())}</span>,
+      cell: (info) => <span className="text-xs text-fg/40">{formatDate(info.getValue())}</span>,
     }),
     ...(canManage ? [col.display({
       id: 'actions',
@@ -62,8 +62,8 @@ export function ProjectTable({ data = [], pagination, loading, filters, onFilter
           className={cn(
             'p-1.5 rounded-lg transition-colors duration-100',
             info.row.original.is_active
-              ? 'text-white/30 hover:text-red-400 hover:bg-red-400/10'
-              : 'text-white/30 hover:text-green-400 hover:bg-green-400/10'
+              ? 'text-fg/30 hover:text-danger hover:bg-danger/10'
+              : 'text-fg/30 hover:text-success hover:bg-success/10'
           )}
         >
           <Power size={14} />
@@ -102,8 +102,8 @@ export function ProjectTable({ data = [], pagination, loading, filters, onFilter
                     key={header.id}
                     onClick={() => handleHeaderClick(header.column.id)}
                     className={cn(
-                      'bg-surface-card px-4 py-3 text-xs font-medium text-white/40 uppercase tracking-wider whitespace-nowrap',
-                      SORTABLE.includes(header.column.id) && 'cursor-pointer hover:text-white/70 select-none'
+                      'bg-surface-card px-4 py-3 text-xs font-medium text-fg/40 uppercase tracking-wider whitespace-nowrap',
+                      SORTABLE.includes(header.column.id) && 'cursor-pointer hover:text-fg/70 select-none'
                     )}
                   >
                     <div className="flex items-center gap-1.5">
@@ -120,13 +120,13 @@ export function ProjectTable({ data = [], pagination, loading, filters, onFilter
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={COLUMNS.length} className="px-4 py-12 text-center text-sm text-white/30">
+                <td colSpan={COLUMNS.length} className="px-4 py-12 text-center text-sm text-fg/30">
                   Cargando…
                 </td>
               </tr>
             ) : table.getRowModel().rows.length === 0 ? (
               <tr>
-                <td colSpan={COLUMNS.length} className="px-4 py-12 text-center text-sm text-white/30">
+                <td colSpan={COLUMNS.length} className="px-4 py-12 text-center text-sm text-fg/30">
                   No se encontraron proyectos
                 </td>
               </tr>
@@ -154,21 +154,21 @@ export function ProjectTable({ data = [], pagination, loading, filters, onFilter
 
       {pagination && (
         <div className="flex items-center justify-between px-4 py-3 border-t border-surface-border shrink-0">
-          <p className="text-xs text-white/30">
+          <p className="text-xs text-fg/30">
             {pagination.total} proyectos — página {pagination.page} de {pagination.totalPages}
           </p>
           <div className="flex items-center gap-2">
             <button
               onClick={() => onFilter('page', pagination.page - 1)}
               disabled={pagination.page <= 1}
-              className="p-1.5 rounded-lg text-white/40 hover:text-white hover:bg-surface-hover disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              className="p-1.5 rounded-lg text-fg/40 hover:text-fg hover:bg-surface-hover disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >
               <ChevronLeft size={16} />
             </button>
             <button
               onClick={() => onFilter('page', pagination.page + 1)}
               disabled={pagination.page >= pagination.totalPages}
-              className="p-1.5 rounded-lg text-white/40 hover:text-white hover:bg-surface-hover disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              className="p-1.5 rounded-lg text-fg/40 hover:text-fg hover:bg-surface-hover disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >
               <ChevronRight size={16} />
             </button>

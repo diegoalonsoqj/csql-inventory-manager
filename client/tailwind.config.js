@@ -1,4 +1,9 @@
 /** @type {import('tailwindcss').Config} */
+
+// Los colores salen de variables CSS (canales RGB) definidas por tema y modo en
+// src/index.css, así el cambio de paleta/modo no requiere tocar componentes.
+const v = (name) => `rgb(var(${name}) / <alpha-value>)`;
+
 export default {
   darkMode: 'class',
   content: ['./index.html', './src/**/*.{js,jsx,ts,tsx}'],
@@ -6,16 +11,22 @@ export default {
     extend: {
       colors: {
         surface: {
-          DEFAULT: '#0f1117',
-          card: '#1a1d27',
-          hover: '#1e2130',
-          border: 'rgba(255,255,255,0.06)',
+          DEFAULT: v('--surface'),
+          card: v('--surface-card'),
+          hover: v('--surface-hover'),
+          border: 'rgb(var(--fg) / calc(<alpha-value> * var(--border-alpha)))',
         },
         accent: {
-          DEFAULT: '#06b6d4',
-          hover: '#0891b2',
-          muted: 'rgba(6,182,212,0.15)',
+          DEFAULT: v('--accent'),
+          hover: v('--accent-hover'),
+          muted: 'rgb(var(--accent) / 0.15)',
         },
+        // Texto/iconos sobre fondo de la app y sobre bg-accent.
+        fg: v('--fg'),
+        'on-accent': v('--on-accent'),
+        success: v('--success'),
+        danger: v('--danger'),
+        warning: v('--warning'),
       },
       fontFamily: {
         mono: ['JetBrains Mono', 'Fira Code', 'ui-monospace', 'monospace'],

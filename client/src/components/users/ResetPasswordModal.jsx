@@ -34,13 +34,13 @@ export function ResetPasswordModal({ user, onClose, onDone }) {
           <div className="flex items-center gap-2">
             <KeyRound size={16} className="text-accent" />
             <div>
-              <h2 className="text-base font-semibold text-white">Restablecer contraseña</h2>
-              <p className="text-xs text-white/40 mt-0.5">{user.email}</p>
+              <h2 className="text-base font-semibold text-fg">Restablecer contraseña</h2>
+              <p className="text-xs text-fg/40 mt-0.5">{user.email}</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-white/40 hover:text-white hover:bg-surface-hover transition-colors"
+            className="p-1.5 rounded-lg text-fg/40 hover:text-fg hover:bg-surface-hover transition-colors"
           >
             <X size={16} />
           </button>
@@ -48,13 +48,13 @@ export function ResetPasswordModal({ user, onClose, onDone }) {
 
         {done ? (
           <div className="px-6 py-6">
-            <p className="text-sm text-green-400 mb-4">
+            <p className="text-sm text-success mb-4">
               Contraseña actualizada. Comparte la nueva contraseña con el usuario por un canal seguro.
             </p>
             <div className="flex justify-end">
               <button
                 onClick={onClose}
-                className="px-4 py-2 bg-accent text-surface text-sm font-medium rounded-lg hover:bg-accent/90 transition-colors"
+                className="px-4 py-2 bg-accent text-on-accent text-sm font-medium rounded-lg hover:bg-accent/90 transition-colors"
               >
                 Cerrar
               </button>
@@ -63,29 +63,29 @@ export function ResetPasswordModal({ user, onClose, onDone }) {
         ) : (
           <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
             <div>
-              <label className="block text-xs font-medium text-white/60 mb-1.5">Nueva contraseña</label>
+              <label className="block text-xs font-medium text-fg/60 mb-1.5">Nueva contraseña</label>
               <input
                 type="text"
                 placeholder="Mínimo 8 caracteres"
                 value={password}
                 onChange={(e) => { setPassword(e.target.value); setError(''); }}
-                className="w-full bg-surface border border-surface-border text-sm font-mono text-white/80 rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent/50 placeholder:text-white/20"
+                className="w-full bg-surface border border-surface-border text-sm font-mono text-fg/80 rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent/50 placeholder:text-fg/20"
               />
-              {error && <p className="text-xs text-red-400 mt-1">{error}</p>}
+              {error && <p className="text-xs text-danger mt-1">{error}</p>}
             </div>
 
             <div className="flex items-center justify-end gap-3 pt-1">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 text-sm text-white/50 hover:text-white transition-colors"
+                className="px-4 py-2 text-sm text-fg/50 hover:text-fg transition-colors"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
                 disabled={submitting}
-                className="flex items-center gap-2 px-4 py-2 bg-accent text-surface text-sm font-medium rounded-lg hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-accent text-on-accent text-sm font-medium rounded-lg hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {submitting && <Loader2 size={14} className="animate-spin" />}
                 Restablecer

@@ -40,7 +40,7 @@ export function InventoryPage() {
 
       <div className="flex-1 min-h-0 pb-7">
         {error ? (
-          <div className="text-center py-16 text-red-400 text-sm">{error}</div>
+          <div className="text-center py-16 text-danger text-sm">{error}</div>
         ) : (
           <InstanceTable
             data={data?.data ?? []}

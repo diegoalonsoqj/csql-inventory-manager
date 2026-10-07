@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext.jsx';
+import { ThemeProvider } from './context/ThemeContext.jsx';
 import { Sidebar } from './components/layout/Sidebar.jsx';
 import { LoginPage } from './pages/LoginPage.jsx';
 import { DashboardPage } from './pages/DashboardPage.jsx';
@@ -29,7 +30,7 @@ function AuthenticatedApp() {
             <Route path="/inventory" element={<InventoryPage />} />
             <Route path="/projects" element={<ProjectsPage />} />
             <Route path="/users" element={<AdminRoute><UsersPage /></AdminRoute>} />
-            <Route path="/settings" element={<AdminRoute><SettingsPage /></AdminRoute>} />
+            <Route path="/settings" element={<SettingsPage />} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </main>
@@ -55,7 +56,9 @@ function Root() {
 export default function App() {
   return (
     <AuthProvider>
-      <Root />
+      <ThemeProvider>
+        <Root />
+      </ThemeProvider>
     </AuthProvider>
   );
 }

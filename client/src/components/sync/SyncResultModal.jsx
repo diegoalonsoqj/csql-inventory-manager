@@ -3,10 +3,10 @@ import { X, CheckCircle2, AlertTriangle, XCircle, Copy, Check } from 'lucide-rea
 import { cn, formatDate, formatDuration } from '../../lib/utils.js';
 
 const STATUS_META = {
-  success: { label: 'Sincronización completa', icon: CheckCircle2, color: 'text-green-400', ring: 'border-green-500/20 bg-green-500/10' },
-  partial: { label: 'Sincronización parcial', icon: AlertTriangle, color: 'text-yellow-400', ring: 'border-yellow-500/20 bg-yellow-500/10' },
-  failed: { label: 'Sincronización fallida', icon: XCircle, color: 'text-red-400', ring: 'border-red-500/20 bg-red-500/10' },
-  running: { label: 'Sincronización en curso', icon: AlertTriangle, color: 'text-yellow-400', ring: 'border-yellow-500/20 bg-yellow-500/10' },
+  success: { label: 'Sincronización completa', icon: CheckCircle2, color: 'text-success', ring: 'border-success/20 bg-success/10' },
+  partial: { label: 'Sincronización parcial', icon: AlertTriangle, color: 'text-warning', ring: 'border-warning/20 bg-warning/10' },
+  failed: { label: 'Sincronización fallida', icon: XCircle, color: 'text-danger', ring: 'border-danger/20 bg-danger/10' },
+  running: { label: 'Sincronización en curso', icon: AlertTriangle, color: 'text-warning', ring: 'border-warning/20 bg-warning/10' },
 };
 
 /**
@@ -37,8 +37,8 @@ function hintFor(failures) {
 function Stat({ label, value }) {
   return (
     <div className="bg-surface rounded-lg px-3 py-2">
-      <p className="text-xs text-white/30">{label}</p>
-      <p className="text-sm font-medium text-white/80 mt-0.5">{value}</p>
+      <p className="text-xs text-fg/30">{label}</p>
+      <p className="text-sm font-medium text-fg/80 mt-0.5">{value}</p>
     </div>
   );
 }
@@ -57,13 +57,13 @@ function Shell({ meta, subtitle, onClose, children }) {
               <Icon size={18} className={meta.color} />
             </div>
             <div className="min-w-0">
-              <h2 className="text-base font-semibold text-white truncate">{meta.label}</h2>
-              <p className="text-xs text-white/40 mt-0.5 truncate">{subtitle}</p>
+              <h2 className="text-base font-semibold text-fg truncate">{meta.label}</h2>
+              <p className="text-xs text-fg/40 mt-0.5 truncate">{subtitle}</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-white/40 hover:text-white hover:bg-surface-hover transition-colors shrink-0"
+            className="p-1.5 rounded-lg text-fg/40 hover:text-fg hover:bg-surface-hover transition-colors shrink-0"
           >
             <X size={16} />
           </button>
@@ -74,7 +74,7 @@ function Shell({ meta, subtitle, onClose, children }) {
         <div className="flex items-center justify-end px-6 py-4 border-t border-surface-border">
           <button
             onClick={onClose}
-            className="px-4 py-2 bg-accent text-surface text-sm font-medium rounded-lg hover:bg-accent/90 transition-colors"
+            className="px-4 py-2 bg-accent text-on-accent text-sm font-medium rounded-lg hover:bg-accent/90 transition-colors"
           >
             Entendido
           </button>
@@ -91,8 +91,8 @@ export function SyncResultModal({ result, triggerError, onClose }) {
   if (triggerError) {
     return (
       <Shell onClose={onClose} meta={STATUS_META.failed} subtitle="No se pudo iniciar la sincronización">
-        <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2.5">
-          <p className="text-xs text-red-400 break-words">{triggerError}</p>
+        <div className="bg-danger/10 border border-danger/20 rounded-lg px-3 py-2.5">
+          <p className="text-xs text-danger break-words">{triggerError}</p>
         </div>
       </Shell>
     );
@@ -132,25 +132,25 @@ export function SyncResultModal({ result, triggerError, onClose }) {
       </div>
 
       {result.error_message && (
-        <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2.5">
-          <p className="text-xs text-red-400 break-words">{result.error_message}</p>
+        <div className="bg-danger/10 border border-danger/20 rounded-lg px-3 py-2.5">
+          <p className="text-xs text-danger break-words">{result.error_message}</p>
         </div>
       )}
 
       {hint && (
         <div className="bg-accent-muted border border-accent/20 rounded-lg px-3 py-2.5">
           <p className="text-xs text-accent font-medium mb-0.5">Cómo resolverlo</p>
-          <p className="text-xs text-white/60 break-words">{hint}</p>
+          <p className="text-xs text-fg/60 break-words">{hint}</p>
         </div>
       )}
 
       {failures.length > 0 && (
         <div>
           <div className="flex items-center justify-between mb-2">
-            <p className="text-xs font-medium text-white/60">Proyectos con error ({failures.length})</p>
+            <p className="text-xs font-medium text-fg/60">Proyectos con error ({failures.length})</p>
             <button
               onClick={copyDetail}
-              className="flex items-center gap-1.5 text-xs text-white/40 hover:text-white transition-colors"
+              className="flex items-center gap-1.5 text-xs text-fg/40 hover:text-fg transition-colors"
             >
               {copied ? <Check size={12} /> : <Copy size={12} />}
               {copied ? 'Copiado' : 'Copiar detalle'}
@@ -160,14 +160,14 @@ export function SyncResultModal({ result, triggerError, onClose }) {
             {failures.map((f, i) => (
               <div key={`${f.project_id}-${i}`} className="bg-surface border border-surface-border rounded-lg px-3 py-2">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs font-mono text-white/80 truncate">{f.project_id ?? '(desconocido)'}</p>
+                  <p className="text-xs font-mono text-fg/80 truncate">{f.project_id ?? '(desconocido)'}</p>
                   {(f.http_status || f.reason) && (
-                    <span className="shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/20">
+                    <span className="shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded bg-danger/10 text-danger border border-danger/20">
                       {f.http_status ?? ''}{f.http_status && f.reason ? ' · ' : ''}{f.reason ?? ''}
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-white/40 mt-1 break-words">{f.message}</p>
+                <p className="text-xs text-fg/40 mt-1 break-words">{f.message}</p>
               </div>
             ))}
           </div>
@@ -175,7 +175,7 @@ export function SyncResultModal({ result, triggerError, onClose }) {
       )}
 
       {failures.length === 0 && result.status === 'success' && (
-        <p className="text-xs text-white/40">Todos los proyectos activos se sincronizaron sin errores.</p>
+        <p className="text-xs text-fg/40">Todos los proyectos activos se sincronizaron sin errores.</p>
       )}
     </Shell>
   );

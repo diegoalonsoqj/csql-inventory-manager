@@ -10,30 +10,30 @@ import { formatDate, formatDuration } from '../lib/utils.js';
 
 function SyncCard({ lastSync }) {
   if (!lastSync) return null;
-  const statusColor = lastSync.status === 'success' ? 'text-green-400' : lastSync.status === 'failed' ? 'text-red-400' : 'text-yellow-400';
+  const statusColor = lastSync.status === 'success' ? 'text-success' : lastSync.status === 'failed' ? 'text-danger' : 'text-warning';
   return (
     <div className="bg-surface-card border border-surface-border rounded-xl p-5">
-      <h3 className="text-sm font-medium text-white/60 mb-3">Última Sincronización</h3>
+      <h3 className="text-sm font-medium text-fg/60 mb-3">Última Sincronización</h3>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <p className="text-xs text-white/30">Estado</p>
+          <p className="text-xs text-fg/30">Estado</p>
           <p className={`text-sm font-medium mt-0.5 ${statusColor}`}>{lastSync.status}</p>
         </div>
         <div>
-          <p className="text-xs text-white/30">Duración</p>
-          <p className="text-sm font-medium text-white mt-0.5">{formatDuration(lastSync.duration_ms)}</p>
+          <p className="text-xs text-fg/30">Duración</p>
+          <p className="text-sm font-medium text-fg mt-0.5">{formatDuration(lastSync.duration_ms)}</p>
         </div>
         <div>
-          <p className="text-xs text-white/30">Proyectos</p>
-          <p className="text-sm font-medium text-white mt-0.5">{lastSync.projects_count}</p>
+          <p className="text-xs text-fg/30">Proyectos</p>
+          <p className="text-sm font-medium text-fg mt-0.5">{lastSync.projects_count}</p>
         </div>
         <div>
-          <p className="text-xs text-white/30">Instancias</p>
-          <p className="text-sm font-medium text-white mt-0.5">{lastSync.instances_count}</p>
+          <p className="text-xs text-fg/30">Instancias</p>
+          <p className="text-sm font-medium text-fg mt-0.5">{lastSync.instances_count}</p>
         </div>
         <div className="col-span-2">
-          <p className="text-xs text-white/30">Ejecutado</p>
-          <p className="text-xs font-mono text-white/50 mt-0.5">{formatDate(lastSync.started_at)}</p>
+          <p className="text-xs text-fg/30">Ejecutado</p>
+          <p className="text-xs font-mono text-fg/50 mt-0.5">{formatDate(lastSync.started_at)}</p>
         </div>
       </div>
     </div>
@@ -46,7 +46,7 @@ export function DashboardPage() {
   if (error) {
     return (
       <div className="text-center py-20">
-        <p className="text-red-400 text-sm">{error}</p>
+        <p className="text-danger text-sm">{error}</p>
         <button onClick={refetch} className="mt-4 text-xs text-accent hover:underline">Reintentar</button>
       </div>
     );
@@ -64,7 +64,7 @@ export function DashboardPage() {
           <button
             onClick={refetch}
             disabled={loading}
-            className="flex items-center gap-2 text-sm text-white/50 hover:text-white transition-colors"
+            className="flex items-center gap-2 text-sm text-fg/50 hover:text-fg transition-colors"
           >
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
             Actualizar

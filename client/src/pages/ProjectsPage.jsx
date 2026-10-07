@@ -32,7 +32,7 @@ export function ProjectsPage() {
             canManageProjects && (
               <button
                 onClick={() => setShowModal(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-accent text-surface text-sm font-medium rounded-lg hover:bg-accent/90 transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-accent text-on-accent text-sm font-medium rounded-lg hover:bg-accent/90 transition-colors"
               >
                 <Plus size={15} />
                 Nuevo proyecto
@@ -45,7 +45,7 @@ export function ProjectsPage() {
 
       <div className="flex-1 min-h-0 pb-7">
         {error ? (
-          <div className="text-center py-16 text-red-400 text-sm">{error}</div>
+          <div className="text-center py-16 text-danger text-sm">{error}</div>
         ) : (
           <ProjectTable
             data={data?.data ?? []}

@@ -95,7 +95,7 @@ export function UserModal({ user, onClose, onSaved }) {
   };
 
   const inputCls =
-    'w-full bg-surface border border-surface-border text-sm text-white/80 rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent/50 placeholder:text-white/20';
+    'w-full bg-surface border border-surface-border text-sm text-fg/80 rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent/50 placeholder:text-fg/20';
 
   const subtitle = isEdit
     ? (isAd ? `Active Directory · ${user.ad_username}` : user.email)
@@ -109,14 +109,14 @@ export function UserModal({ user, onClose, onSaved }) {
       <div className="w-full max-w-md bg-surface-card border border-surface-border rounded-xl shadow-2xl">
         <div className="flex items-center justify-between px-6 py-4 border-b border-surface-border">
           <div className="min-w-0">
-            <h2 className="text-base font-semibold text-white">
+            <h2 className="text-base font-semibold text-fg">
               {isEdit ? 'Editar usuario' : 'Nuevo usuario'}
             </h2>
-            <p className="text-xs text-white/40 mt-0.5 truncate">{subtitle}</p>
+            <p className="text-xs text-fg/40 mt-0.5 truncate">{subtitle}</p>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-white/40 hover:text-white hover:bg-surface-hover transition-colors"
+            className="p-1.5 rounded-lg text-fg/40 hover:text-fg hover:bg-surface-hover transition-colors"
           >
             <X size={16} />
           </button>
@@ -126,7 +126,7 @@ export function UserModal({ user, onClose, onSaved }) {
           {/* Tipo de usuario: solo al crear (no se convierte un usuario existente). */}
           {!isEdit && (
             <div>
-              <label className="block text-xs font-medium text-white/60 mb-1.5">Tipo de usuario</label>
+              <label className="block text-xs font-medium text-fg/60 mb-1.5">Tipo de usuario</label>
               <div className="grid grid-cols-2 gap-2">
                 {AUTH_TYPES.map(({ value, label, icon: Icon }) => (
                   <button
@@ -137,7 +137,7 @@ export function UserModal({ user, onClose, onSaved }) {
                       'flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium transition-colors',
                       form.auth_type === value
                         ? 'border-accent/40 bg-accent-muted text-accent'
-                        : 'border-surface-border text-white/50 hover:text-white hover:bg-surface-hover'
+                        : 'border-surface-border text-fg/50 hover:text-fg hover:bg-surface-hover'
                     )}
                   >
                     <Icon size={15} />
@@ -145,7 +145,7 @@ export function UserModal({ user, onClose, onSaved }) {
                   </button>
                 ))}
               </div>
-              <p className="text-xs text-white/30 mt-1.5">
+              <p className="text-xs text-fg/30 mt-1.5">
                 {AUTH_TYPES.find((t) => t.value === form.auth_type).hint}
               </p>
             </div>
@@ -153,7 +153,7 @@ export function UserModal({ user, onClose, onSaved }) {
 
           {isAd && (
             <div>
-              <label className="block text-xs font-medium text-white/60 mb-1.5">Usuario de red</label>
+              <label className="block text-xs font-medium text-fg/60 mb-1.5">Usuario de red</label>
               <input
                 type="text"
                 placeholder="jperez"
@@ -164,15 +164,15 @@ export function UserModal({ user, onClose, onSaved }) {
                 className={`${inputCls} font-mono`}
               />
               {errors.ad_username ? (
-                <p className="text-xs text-red-400 mt-1">{errors.ad_username}</p>
+                <p className="text-xs text-danger mt-1">{errors.ad_username}</p>
               ) : (
-                <p className="text-xs text-white/30 mt-1">El mismo con el que entra a Windows, sin el dominio.</p>
+                <p className="text-xs text-fg/30 mt-1">El mismo con el que entra a Windows, sin el dominio.</p>
               )}
             </div>
           )}
 
           <div>
-            <label className="block text-xs font-medium text-white/60 mb-1.5">Nombre completo</label>
+            <label className="block text-xs font-medium text-fg/60 mb-1.5">Nombre completo</label>
             <input
               type="text"
               placeholder="Juan Pérez"
@@ -180,12 +180,12 @@ export function UserModal({ user, onClose, onSaved }) {
               onChange={(e) => handleChange('full_name', e.target.value)}
               className={inputCls}
             />
-            {errors.full_name && <p className="text-xs text-red-400 mt-1">{errors.full_name}</p>}
+            {errors.full_name && <p className="text-xs text-danger mt-1">{errors.full_name}</p>}
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-white/60 mb-1.5">
-              Correo {isAd && <span className="text-white/30 font-normal">(opcional)</span>}
+            <label className="block text-xs font-medium text-fg/60 mb-1.5">
+              Correo {isAd && <span className="text-fg/30 font-normal">(opcional)</span>}
             </label>
             <input
               type="email"
@@ -195,17 +195,17 @@ export function UserModal({ user, onClose, onSaved }) {
               className={`${inputCls} font-mono`}
             />
             {errors.email ? (
-              <p className="text-xs text-red-400 mt-1">{errors.email}</p>
+              <p className="text-xs text-danger mt-1">{errors.email}</p>
             ) : (
               !isAd && isEdit && (
-                <p className="text-xs text-white/30 mt-1">Es el correo con el que inicia sesión.</p>
+                <p className="text-xs text-fg/30 mt-1">Es el correo con el que inicia sesión.</p>
               )
             )}
           </div>
 
           {!isAd && !isEdit && (
             <div>
-              <label className="block text-xs font-medium text-white/60 mb-1.5">
+              <label className="block text-xs font-medium text-fg/60 mb-1.5">
                 Contraseña temporal
               </label>
               <input
@@ -216,9 +216,9 @@ export function UserModal({ user, onClose, onSaved }) {
                 className={`${inputCls} font-mono`}
               />
               {errors.password ? (
-                <p className="text-xs text-red-400 mt-1">{errors.password}</p>
+                <p className="text-xs text-danger mt-1">{errors.password}</p>
               ) : (
-                <p className="text-xs text-white/30 mt-1">
+                <p className="text-xs text-fg/30 mt-1">
                   El usuario debería cambiarla en su primer ingreso.
                 </p>
               )}
@@ -226,7 +226,7 @@ export function UserModal({ user, onClose, onSaved }) {
           )}
 
           <div>
-            <label className="block text-xs font-medium text-white/60 mb-1.5">Rol</label>
+            <label className="block text-xs font-medium text-fg/60 mb-1.5">Rol</label>
             <select
               value={form.role}
               onChange={(e) => handleChange('role', e.target.value)}
@@ -239,8 +239,8 @@ export function UserModal({ user, onClose, onSaved }) {
           </div>
 
           {serverError && (
-            <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2.5">
-              <p className="text-xs text-red-400">{serverError}</p>
+            <div className="bg-danger/10 border border-danger/20 rounded-lg px-3 py-2.5">
+              <p className="text-xs text-danger">{serverError}</p>
             </div>
           )}
 
@@ -248,14 +248,14 @@ export function UserModal({ user, onClose, onSaved }) {
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sm text-white/50 hover:text-white transition-colors"
+              className="px-4 py-2 text-sm text-fg/50 hover:text-fg transition-colors"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={submitting}
-              className="flex items-center gap-2 px-4 py-2 bg-accent text-surface text-sm font-medium rounded-lg hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-accent text-on-accent text-sm font-medium rounded-lg hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {submitting && <Loader2 size={14} className="animate-spin" />}
               {isEdit ? 'Guardar cambios' : 'Crear usuario'}

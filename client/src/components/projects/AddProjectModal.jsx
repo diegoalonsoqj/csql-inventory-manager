@@ -53,12 +53,12 @@ export function AddProjectModal({ onClose, onCreated }) {
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-surface-border">
           <div>
-            <h2 className="text-base font-semibold text-white">Agregar proyecto GCP</h2>
-            <p className="text-xs text-white/40 mt-0.5">El proyecto se marcará como activo por defecto</p>
+            <h2 className="text-base font-semibold text-fg">Agregar proyecto GCP</h2>
+            <p className="text-xs text-fg/40 mt-0.5">El proyecto se marcará como activo por defecto</p>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-white/40 hover:text-white hover:bg-surface-hover transition-colors"
+            className="p-1.5 rounded-lg text-fg/40 hover:text-fg hover:bg-surface-hover transition-colors"
           >
             <X size={16} />
           </button>
@@ -67,7 +67,7 @@ export function AddProjectModal({ onClose, onCreated }) {
         {/* Form */}
         <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
           <div>
-            <label className="block text-xs font-medium text-white/60 mb-1.5">
+            <label className="block text-xs font-medium text-fg/60 mb-1.5">
               Nombre del proyecto
             </label>
             <input
@@ -75,34 +75,34 @@ export function AddProjectModal({ onClose, onCreated }) {
               placeholder="Mi Proyecto Producción"
               value={form.project_name}
               onChange={(e) => handleChange('project_name', e.target.value)}
-              className="w-full bg-surface border border-surface-border text-sm text-white/80 rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent/50 placeholder:text-white/20"
+              className="w-full bg-surface border border-surface-border text-sm text-fg/80 rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent/50 placeholder:text-fg/20"
             />
             {errors.project_name && (
-              <p className="text-xs text-red-400 mt-1">{errors.project_name}</p>
+              <p className="text-xs text-danger mt-1">{errors.project_name}</p>
             )}
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-white/60 mb-1.5">
-              Project ID <span className="text-white/30">(GCP)</span>
+            <label className="block text-xs font-medium text-fg/60 mb-1.5">
+              Project ID <span className="text-fg/30">(GCP)</span>
             </label>
             <input
               type="text"
               placeholder="my-project-123"
               value={form.project_id}
               onChange={(e) => handleChange('project_id', e.target.value.toLowerCase())}
-              className="w-full bg-surface border border-surface-border text-sm font-mono text-white/80 rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent/50 placeholder:text-white/20"
+              className="w-full bg-surface border border-surface-border text-sm font-mono text-fg/80 rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent/50 placeholder:text-fg/20"
             />
             {errors.project_id ? (
-              <p className="text-xs text-red-400 mt-1">{errors.project_id}</p>
+              <p className="text-xs text-danger mt-1">{errors.project_id}</p>
             ) : (
-              <p className="text-xs text-white/30 mt-1">Minúsculas, dígitos y guiones. Ej: mi-empresa-prod</p>
+              <p className="text-xs text-fg/30 mt-1">Minúsculas, dígitos y guiones. Ej: mi-empresa-prod</p>
             )}
           </div>
 
           {serverError && (
-            <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2.5">
-              <p className="text-xs text-red-400">{serverError}</p>
+            <div className="bg-danger/10 border border-danger/20 rounded-lg px-3 py-2.5">
+              <p className="text-xs text-danger">{serverError}</p>
             </div>
           )}
 
@@ -111,14 +111,14 @@ export function AddProjectModal({ onClose, onCreated }) {
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sm text-white/50 hover:text-white transition-colors"
+              className="px-4 py-2 text-sm text-fg/50 hover:text-fg transition-colors"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={submitting}
-              className="flex items-center gap-2 px-4 py-2 bg-accent text-surface text-sm font-medium rounded-lg hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-accent text-on-accent text-sm font-medium rounded-lg hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {submitting && <Loader2 size={14} className="animate-spin" />}
               Crear proyecto
